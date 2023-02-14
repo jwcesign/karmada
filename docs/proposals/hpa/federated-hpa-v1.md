@@ -95,7 +95,7 @@ Consider including folks who also work outside the SIG or subproject.
 
 ## Design Details
 ### Architecture
-![Karmada FederatedHPA Architecture](statics/karmadafederatedhpa-arch.drawio.png)
+![Karmada FederatedHPA Architecture](statics/karmadafederatedhpa-arch.drawio-v1.png)
 
 There are no new CRDs or resources introduced in this design. All the core functions are implemented in the `FederatedHPAController`.
 1. The Kubernetes HPA components are still used in the member cluster and can work standalone.
