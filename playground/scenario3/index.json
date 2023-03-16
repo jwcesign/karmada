@@ -1,0 +1,7 @@
+{
+  "title": "Scenario three",
+  "description": "This is the description of scenario TWO",
+  "backend": {
+    "imageid": "ubuntu"
+  }
+}
