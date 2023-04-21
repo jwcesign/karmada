@@ -19,6 +19,12 @@ MEMBER_CLUSTER_2_NAME=${MEMBER_CLUSTER_2_NAME:-"member2"}
 CLUSTER_VERSION=${CLUSTER_VERSION:-"kindest/node:v1.26.0"}
 BUILD_PATH=${BUILD_PATH:-"_output/bin/linux/amd64"}
 
+function handle_trap() {
+    cat ${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config
+}
+
+trap handle_trap ERR
+
 # prepare the newest crds
 echo "Prepare the newest crds"
 cd  charts/karmada/
@@ -39,6 +45,7 @@ hack/create-cluster.sh ${MEMBER_CLUSTER_2_NAME} ${KUBECONFIG_PATH}/${MEMBER_CLUS
 echo "Wait clusters ready..."
 util::wait_file_exist ${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config 300
 util::wait_context_exist ${HOST_CLUSTER_NAME} ${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config 300
+cat ${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config
 kubectl wait --for=condition=Ready nodes --all --timeout=800s --kubeconfig=${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config
 util::wait_nodes_taint_disappear 800 ${KUBECONFIG_PATH}/${HOST_CLUSTER_NAME}.config
 
