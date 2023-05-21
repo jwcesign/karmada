@@ -1,0 +1,73 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karmada-metrics-adapter
+  namespace: karmada-system
+  labels:
+    app: karmada-metrics-adapter
+    apiserver: "true"
+spec:
+  selector:
+    matchLabels:
+      app: karmada-metrics-adapter
+      apiserver: "true"
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: karmada-metrics-adapter
+        apiserver: "true"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: karmada-metrics-adapter
+          image: docker.io/cesign/karmada-metrics-adapter:v0.1.0
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: karmada-certs
+              mountPath: /etc/karmada/pki
+              readOnly: true
+            - name: kubeconfig
+              subPath: kubeconfig
+              mountPath: /etc/kubeconfig
+          command:
+            - /bin/karmada-metrics-adapter
+            - --audit-log-maxbackup=0
+#          livenessProbe:
+#            httpGet:
+#              path: /livez
+#              port: 443
+#              scheme: HTTPS
+#            failureThreshold: 3
+#            initialDelaySeconds: 15
+#            periodSeconds: 15
+#            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+      volumes:
+        - name: karmada-certs
+          secret:
+            secretName: karmada-cert-secret
+        - name: kubeconfig
+          secret:
+            secretName: kubeconfig
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: metrics-adapter
+    app.kubernetes.io/name: karmada-metrics-adapter
+    app.kubernetes.io/version: 0.10.0
+  name: karmada-metrics-adapter
+  namespace: karmada-system
+spec:
+  ports:
+    - name: https
+      port: 443
+      targetPort: 6443
+  selector:
+    app.kubernetes.io/component: karmada-metrics-adapter
+    app.kubernetes.io/name: karmada-metrics-adapter
