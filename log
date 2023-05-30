@@ -1,0 +1,18 @@
+I0530 16:02:54.014568       1 options.go:91] karmada-metrics-adapter version: version.Info{GitVersion:"v1.3.0-1041-g4fb2ee62-dirty", GitCommit:"4fb2ee62864f98b80c0da0d7420bab055ff7facc", GitTreeState:"dirty", BuildDate:"2023-05-30T16:01:17Z", GoVersion:"go1.20.4", Compiler:"gc", Platform:"linux/amd64"}
+I0530 16:02:54.144010       1 serving.go:342] Generated self-signed cert (apiserver.local.config/certificates/apiserver.crt, apiserver.local.config/certificates/apiserver.key)
+I0530 16:02:54.531860       1 requestheader_controller.go:169] Starting RequestHeaderAuthRequestController
+I0530 16:02:54.531881       1 shared_informer.go:273] Waiting for caches to sync for RequestHeaderAuthRequestController
+I0530 16:02:54.531912       1 configmap_cafile_content.go:202] "Starting controller" name="client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file"
+I0530 16:02:54.531914       1 dynamic_cafile_content.go:157] "Starting controller" name="client-ca-bundle::/etc/karmada/pki/ca.crt"
+I0530 16:02:54.531939       1 shared_informer.go:273] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I0530 16:02:54.532212       1 dynamic_serving_content.go:132] "Starting controller" name="serving-cert::apiserver.local.config/certificates/apiserver.crt::apiserver.local.config/certificates/apiserver.key"
+I0530 16:02:54.532816       1 secure_serving.go:210] Serving securely on [::]:443
+I0530 16:02:54.532843       1 tlsconfig.go:240] "Starting DynamicServingCertificateController"
+I0530 16:02:54.535970       1 controller.go:140] Try to build informer manager for cluster member2
+I0530 16:02:54.632857       1 shared_informer.go:280] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I0530 16:02:54.632868       1 shared_informer.go:280] Caches are synced for RequestHeaderAuthRequestController
+I0530 16:02:58.940159       1 controller.go:140] Try to build informer manager for cluster member3
+I0530 16:02:59.048271       1 controller.go:140] Try to build informer manager for cluster member1
+E0530 16:03:26.252850       1 resourcemetrics.go:592] Failed to convert to typed object: FromUnstructured requires a non-nil pointer to an object, got *v1.Node
+E0530 16:03:26.252869       1 node.go:121] "Failed getting node" err="FromUnstructured requires a non-nil pointer to an object, got *v1.Node" node="member3-control-plane"
+E0530 16:03:26.252888       1 status.go:71] apiserver received an error that is not an metav1.Status: &fmt.wrapError{msg:"failed getting node: FromUnstructured requires a non-nil pointer to an object, got *v1.Node", err:(*errors.errorString)(0xc000b65ed0)}: failed getting node: FromUnstructured requires a non-nil pointer to an object, got *v1.Node

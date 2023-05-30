@@ -25,6 +25,7 @@ import (
 	"github.com/karmada-io/karmada/pkg/webhook/clusteroverridepolicy"
 	"github.com/karmada-io/karmada/pkg/webhook/clusterpropagationpolicy"
 	"github.com/karmada-io/karmada/pkg/webhook/configuration"
+	"github.com/karmada-io/karmada/pkg/webhook/federatedhpa"
 	"github.com/karmada-io/karmada/pkg/webhook/federatedresourcequota"
 	"github.com/karmada-io/karmada/pkg/webhook/multiclusteringress"
 	"github.com/karmada-io/karmada/pkg/webhook/overridepolicy"
@@ -127,6 +128,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 	hookServer.Register("/convert", &conversion.Webhook{})
 	hookServer.Register("/validate-resourceinterpreterwebhookconfiguration", &webhook.Admission{Handler: &configuration.ValidatingAdmission{}})
 	hookServer.Register("/validate-federatedresourcequota", &webhook.Admission{Handler: &federatedresourcequota.ValidatingAdmission{}})
+	hookServer.Register("/validate-federatedhpa", &webhook.Admission{Handler: &federatedhpa.ValidatingAdmission{}})
 	hookServer.Register("/validate-resourceinterpretercustomization", &webhook.Admission{Handler: &resourceinterpretercustomization.ValidatingAdmission{Client: hookManager.GetClient()}})
 	hookServer.Register("/validate-multiclusteringress", &webhook.Admission{Handler: &multiclusteringress.ValidatingAdmission{}})
 	hookServer.WebhookMux.Handle("/readyz/", http.StripPrefix("/readyz/", &healthz.Handler{}))

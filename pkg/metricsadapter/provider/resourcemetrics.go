@@ -2,12 +2,12 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,7 +18,6 @@ import (
 
 	clusterlister "github.com/karmada-io/karmada/pkg/generated/listers/cluster/v1alpha1"
 	"github.com/karmada-io/karmada/pkg/util/fedinformer/genericmanager"
-	"github.com/karmada-io/karmada/pkg/util/fedinformer/keys"
 	"github.com/karmada-io/karmada/pkg/util/helper"
 )
 
@@ -26,6 +25,12 @@ const (
 	// labelSelectorAnnotationInternal is the annotation used internal in karmada-metrics-adapter,
 	// to record the selector specified by the user
 	labelSelectorAnnotationInternal = "internal.karmada.io/selector"
+	// namespaceSpecifiedAnnotation is the annotation used in karmada-metrics-adapter,
+	// to record the namespace specified by the user
+	namespaceSpecifiedAnnotation = "internal.karmada.io/namespace"
+	// querySourceAnnotationKey is the annotation used in karmada-metrics-adapter to
+	// record the query source cluster
+	querySourceAnnotationKey = "resource.karmada.io/query-from-cluster"
 )
 
 var (
@@ -53,7 +58,6 @@ type ResourceMetricsProvider struct {
 
 // NewResourceMetricsProvider creates a new resource metrics provider
 func NewResourceMetricsProvider(clusterLister clusterlister.ClusterLister, informerManager genericmanager.MultiClusterInformerManager) *ResourceMetricsProvider {
-
 	return &ResourceMetricsProvider{
 		clusterLister:   clusterLister,
 		informerManager: informerManager,
@@ -62,7 +66,7 @@ func NewResourceMetricsProvider(clusterLister clusterlister.ClusterLister, infor
 	}
 }
 
-// getMetricsParallel is a parallel func of to query metrics from member clusters
+// getMetricsParallel is a parallel func to query metrics from member clusters
 func (r *ResourceMetricsProvider) getMetricsParallel(resourceFunc queryResourceFromClustersFunc,
 	metricsFunc queryMetricsFromClustersFunc) ([]interface{}, error) {
 	clusters, err := r.clusterLister.List(labels.Everything())
@@ -71,7 +75,7 @@ func (r *ResourceMetricsProvider) getMetricsParallel(resourceFunc queryResourceF
 		return nil, err
 	}
 
-	// step 1. Find out the target clusters with lister cache
+	// step 1. Find out the target clusters in lister cache
 	var targetClusters []string
 	for _, cluster := range clusters {
 		sci := r.informerManager.GetSingleClusterManager(cluster.Name)
@@ -293,21 +297,17 @@ func (r *ResourceMetricsProvider) GetPodMetrics(pods ...*metav1.PartialObjectMet
 		return ret, nil
 	}
 
-	podsKeyMap := make(map[string]struct{})
+	podsKeyMap := map[string]string{}
 	for _, pod := range pods {
-		podKey, err := keys.ClusterWideKeyFunc(pod)
-		if err != nil {
-			klog.Errorf("Generate pod key error: %v", err)
-			return nil, err
-		}
-		podsKeyMap[podKey.String()] = struct{}{}
+		podKey := generateNamespaceNameKey(pod.Namespace, pod.Name)
+		podsKeyMap[podKey] = pod.Annotations[querySourceAnnotationKey]
 	}
 
-	var queryData = []metrics.PodMetrics{}
+	var queryData []metrics.PodMetrics
 	var err error
 	// In the previous step, we construct the annotations, so it couldn't be nil
 	if _, ok := pods[0].Annotations[labelSelectorAnnotationInternal]; ok {
-		namespace := pods[0].Namespace
+		namespace := pods[0].Annotations[namespaceSpecifiedAnnotation]
 		selectorStr := pods[0].Annotations[labelSelectorAnnotationInternal]
 		queryData, err = r.queryPodMetricsBySelector(selectorStr, namespace)
 	} else {
@@ -319,7 +319,12 @@ func (r *ResourceMetricsProvider) GetPodMetrics(pods ...*metav1.PartialObjectMet
 	}
 
 	for _, i := range queryData {
-		if _, ok := podsKeyMap[i.Namespace+"/"+i.Name]; ok {
+		podKey := generateNamespaceNameKey(i.Namespace, i.Name)
+		if queryCluster, ok := podsKeyMap[podKey]; ok {
+			if i.Annotations == nil {
+				i.Annotations = make(map[string]string)
+			}
+			i.Annotations[querySourceAnnotationKey] = queryCluster
 			ret = append(ret, i)
 		}
 	}
@@ -334,17 +339,13 @@ func (r *ResourceMetricsProvider) GetNodeMetrics(nodes ...*corev1.Node) ([]metri
 		return ret, nil
 	}
 
-	nodesKeyMap := make(map[string]struct{})
+	nodesKeyMap := map[string]string{}
 	for _, node := range nodes {
-		nodKey, err := keys.ClusterWideKeyFunc(node)
-		if err != nil {
-			klog.Errorf("Generate node key error: %v", err)
-			continue
-		}
-		nodesKeyMap[nodKey.String()] = struct{}{}
+		nodeKey := generateNamespaceNameKey("", node.Name)
+		nodesKeyMap[nodeKey] = node.Annotations[querySourceAnnotationKey]
 	}
 
-	var queryData = []metrics.NodeMetrics{}
+	var queryData []metrics.NodeMetrics
 	var err error
 	// In the previous step, we construct the annotations, so it couldn't be nil
 	if _, ok := nodes[0].Annotations[labelSelectorAnnotationInternal]; ok {
@@ -359,12 +360,12 @@ func (r *ResourceMetricsProvider) GetNodeMetrics(nodes ...*corev1.Node) ([]metri
 	}
 
 	for _, i := range queryData {
-		nodKey, err := keys.ClusterWideKeyFunc(i)
-		if err != nil {
-			klog.Errorf("Generate node key error: %v", err)
-			continue
-		}
-		if _, ok := nodesKeyMap[nodKey.String()]; ok {
+		nodeKey := generateNamespaceNameKey(i.Namespace, i.Name)
+		if cluster, ok := nodesKeyMap[nodeKey]; ok {
+			if i.Annotations == nil {
+				i.Annotations = make(map[string]string)
+			}
+			i.Annotations[querySourceAnnotationKey] = cluster
 			ret = append(ret, i)
 		}
 	}
@@ -389,7 +390,7 @@ func NewPodLister(clusterLister clusterlister.ClusterLister, informerManager gen
 
 // List returns the internal constructed pod with label selector info
 func (p *PodLister) List(selector labels.Selector) (ret []runtime.Object, err error) {
-	klog.V(4).Infof("List query pods with selector: %v", selector.String())
+	klog.V(4).Infof("List query pods with selector: %s", selector.String())
 
 	clusters, err := p.clusterLister.List(labels.Everything())
 	if err != nil {
@@ -404,21 +405,45 @@ func (p *PodLister) List(selector labels.Selector) (ret []runtime.Object, err er
 		}
 		pods, err := sci.Lister(PodsGVR).ByNamespace(p.namespaceSpecified).List(selector)
 		if err != nil {
-			klog.Infof("Failed to list pods in namespace(%s): %v", p.namespaceSpecified, err)
+			klog.Errorf("Failed to list pods from cluster(%s) in namespace(%s): %v", cluster.Name, p.namespaceSpecified, err)
 			return nil, err
 		}
 		for _, pod := range pods {
 			podTyped := &corev1.Pod{}
 			err = helper.ConvertToTypedObject(pod, podTyped)
 			if err != nil {
-				klog.Infof("Failed to convert to typed object: %v", err)
+				klog.Errorf("Failed to convert to typed object: %v", err)
 				return nil, err
 			}
-			ret = append(ret, convertToPodPartialData(podTyped, selector.String(), true))
+			podPartial := p.convertToPodPartialData(podTyped, selector.String(), true)
+			podPartial.Annotations[querySourceAnnotationKey] = cluster.Name
+			ret = append(ret, podPartial)
 		}
 	}
 
 	return ret, nil
+}
+
+// convertToPodPartialData converts pod to partial data
+func (p *PodLister) convertToPodPartialData(pod *corev1.Pod, selector string, labelSelector bool) *metav1.PartialObjectMetadata {
+	ret := &metav1.PartialObjectMetadata{
+		TypeMeta:   pod.TypeMeta,
+		ObjectMeta: pod.ObjectMeta,
+	}
+	if ret.Annotations == nil {
+		ret.Annotations = map[string]string{}
+	}
+
+	//If user sets this annotation, we need to remove it to avoid parsing wrong next.
+	if !labelSelector {
+		delete(ret.Annotations, namespaceSpecifiedAnnotation)
+		delete(ret.Annotations, labelSelectorAnnotationInternal)
+		return ret
+	}
+	ret.Annotations[labelSelectorAnnotationInternal] = selector
+	ret.Annotations[namespaceSpecifiedAnnotation] = p.namespaceSpecified
+
+	return ret
 }
 
 // Get returns the internal constructed pod with name info
@@ -430,6 +455,7 @@ func (p *PodLister) Get(name string) (runtime.Object, error) {
 		return nil, err
 	}
 
+	var podPartial *metav1.PartialObjectMetadata
 	for _, cluster := range clusters {
 		sci := p.informerManager.GetSingleClusterManager(cluster.Name)
 		if sci == nil {
@@ -437,18 +463,29 @@ func (p *PodLister) Get(name string) (runtime.Object, error) {
 			continue
 		}
 		pod, err := sci.Lister(PodsGVR).ByNamespace(p.namespaceSpecified).Get(name)
-		if err != nil && !errors.IsNotFound(err) {
-			klog.Infof("Failed to get pods in namespace(%s): %v", p.namespaceSpecified, err)
-			return nil, err
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				klog.Errorf("Failed to get pod  from clsuster(%s) in namespace(%s): %v", cluster.Name, p.namespaceSpecified, err)
+			}
+			continue
 		}
-		// We only return the first matched cluster
+
+		if podPartial != nil {
+			err := fmt.Errorf("the pod(%s) found in more than one clusters", name)
+			return nil, errors.NewConflict(PodsGVR.GroupResource(), name, err)
+		}
 		podTyped := &corev1.Pod{}
 		err = helper.ConvertToTypedObject(pod, podTyped)
 		if err != nil {
-			klog.Infof("Failed to convert to typed object: %v", err)
+			klog.Errorf("Failed to convert to typed object: %v", err)
 			return nil, err
 		}
-		return convertToPodPartialData(podTyped, "", false), nil
+		podPartial = p.convertToPodPartialData(podTyped, "", false)
+		podPartial.Annotations[querySourceAnnotationKey] = cluster.Name
+	}
+
+	if podPartial != nil {
+		return podPartial, nil
 	}
 
 	return nil, errors.NewNotFound(PodsGVR.GroupResource(), name)
@@ -497,7 +534,7 @@ func (n *NodeLister) List(selector labels.Selector) (ret []*corev1.Node, err err
 		}
 		nodes, err := sci.Lister(NodesGVR).List(selector)
 		if err != nil {
-			klog.Infof("Failed to list nodes in: %v", err)
+			klog.Errorf("Failed to list nodes from cluster(%s): %v", cluster.Name, err)
 			return nil, err
 		}
 		for index := range nodes {
@@ -507,6 +544,13 @@ func (n *NodeLister) List(selector labels.Selector) (ret []*corev1.Node, err err
 				klog.Errorf("Failed to convert to typed object: %v", err)
 				return nil, err
 			}
+			if nodeTyped.Annotations == nil {
+				nodeTyped.Annotations = map[string]string{}
+			}
+
+			//If user sets this annotation, we need to reset it.
+			nodeTyped.Annotations[labelSelectorAnnotationInternal] = selector.String()
+			nodeTyped.Annotations[querySourceAnnotationKey] = cluster.Name
 			ret = append(ret, nodeTyped)
 		}
 	}
@@ -523,24 +567,42 @@ func (n *NodeLister) Get(name string) (*corev1.Node, error) {
 		return nil, err
 	}
 
+	var nodeTyped *corev1.Node
 	for _, cluster := range clusters {
 		sci := n.informerManager.GetSingleClusterManager(cluster.Name)
 		if sci == nil {
 			klog.Errorf("Failed to get SingleClusterInformerManager for cluster(%s)", cluster.Name)
 			continue
 		}
-		node, err := sci.Lister(PodsGVR).Get(name)
-		if err != nil && !errors.IsNotFound(err) {
-			klog.Infof("Failed to get node%v", err)
-			return nil, err
+		node, err := sci.Lister(NodesGVR).Get(name)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				klog.Errorf("Failed to get node from cluster(%s):%v", cluster.Name, err)
+			}
+			continue
 		}
-		// We only return the first matched cluster
-		nodeTyped := &corev1.Node{}
+
+		if nodeTyped != nil {
+			err := fmt.Errorf("the node(%s) found in more than one clusters", name)
+			return nil, errors.NewConflict(NodesGVR.GroupResource(), name, err)
+		}
+
+		nodeTyped = &corev1.Node{}
 		err = helper.ConvertToTypedObject(node, nodeTyped)
 		if err != nil {
 			klog.Errorf("Failed to convert to typed object: %v", err)
 			return nil, err
 		}
+		if nodeTyped.Annotations == nil {
+			nodeTyped.Annotations = map[string]string{}
+		}
+
+		//If user sets this annotation, we need to remove it to avoid parsing wrong next.
+		delete(nodeTyped.Annotations, labelSelectorAnnotationInternal)
+		nodeTyped.Annotations[querySourceAnnotationKey] = cluster.Name
+	}
+
+	if nodeTyped != nil {
 		return nodeTyped, nil
 	}
 
@@ -601,19 +663,7 @@ func metricsConvertV1beta1NodeToInternalNode(objs ...unstructured.Unstructured) 
 	return nodeMetricsInternal, nil
 }
 
-func convertToPodPartialData(pod *corev1.Pod, selector string, labelSelector bool) *v1.PartialObjectMetadata {
-	ret := &v1.PartialObjectMetadata{
-		TypeMeta:   pod.TypeMeta,
-		ObjectMeta: pod.ObjectMeta,
-	}
-	if ret.Annotations == nil {
-		ret.Annotations = map[string]string{}
-	}
-	if !labelSelector {
-		delete(ret.Annotations, labelSelectorAnnotationInternal)
-		return ret
-	}
-	ret.Annotations[labelSelectorAnnotationInternal] = selector
-
-	return ret
+// generateNamespaceNameKey generates namespace/name key
+func generateNamespaceNameKey(namespace, name string) string {
+	return namespace + "/" + name
 }
