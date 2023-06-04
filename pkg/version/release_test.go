@@ -1,6 +1,10 @@
 package version
 
-import "testing"
+import (
+	"fmt"
+	"k8s.io/apimachinery/pkg/util/version"
+	"testing"
+)
 
 func TestReleaseVersion(t *testing.T) {
 	tests := []struct {
@@ -36,6 +40,13 @@ func TestReleaseVersion(t *testing.T) {
 			gitVersion:  "vx.y.z-6-gf20c721a",
 			expectError: true,
 		},
+		{
+			name:                    "prerelease alpha version",
+			gitVersion:              "v1.7.0-alpha.1-3-gf20c721a",
+			expectFirstMinorRelease: "v1.7.0",
+			expectPatchRelease:      "v1.7.0-alpha.1",
+			expectError:             false,
+		},
 	}
 
 	for i := range tests {
@@ -58,8 +69,8 @@ func TestReleaseVersion(t *testing.T) {
 				t.Fatalf("expect first minor release: %s, but got: %s", tc.expectFirstMinorRelease, rv.FirstMinorRelease())
 			}
 
-			if rv.PatchRelease() != tc.expectPatchRelease {
-				t.Fatalf("expect patch release: %s, but got: %s", tc.expectPatchRelease, rv.PatchRelease())
+			if rv.ReleaseVersion() != tc.expectPatchRelease {
+				t.Fatalf("expect patch release: %s, but got: %s", tc.expectPatchRelease, rv.ReleaseVersion())
 			}
 		})
 	}
@@ -152,9 +163,15 @@ func TestReleaseVersion_PatchRelease(t *testing.T) {
 				}
 			}
 
-			if rv.PatchRelease() != tc.expect {
-				t.Fatalf("expect patch release: %s, but got: %s", tc.expect, rv.PatchRelease())
+			if rv.ReleaseVersion() != tc.expect {
+				t.Fatalf("expect patch release: %s, but got: %s", tc.expect, rv.ReleaseVersion())
 			}
 		})
 	}
+}
+
+func Test_MyTest(t *testing.T) {
+	v := "v1.7.0-alpha.1-3-gf20c721a"
+	rv, _ := version.ParseGeneric(v)
+	fmt.Println(rv.PreRelease())
 }

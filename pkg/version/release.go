@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"regexp"
 
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
@@ -15,7 +16,8 @@ type ReleaseVersion struct {
 // - v1.1.0-73-g7e6d4f69
 // - v1.1.0
 func ParseGitVersion(gitVersion string) (*ReleaseVersion, error) {
-	v, err := utilversion.ParseGeneric(gitVersion)
+	formattedVersion := removeGitVersionCommits(gitVersion)
+	v, err := utilversion.ParseSemantic(formattedVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -33,14 +35,31 @@ func (r *ReleaseVersion) FirstMinorRelease() string {
 		return "<nil>"
 	}
 
+	if r.PreRelease() != "" {
+		return fmt.Sprintf("v%d.%d.0", r.Version.Major(), r.Version.Minor()-1)
+	}
 	return fmt.Sprintf("v%d.%d.0", r.Version.Major(), r.Version.Minor())
 }
 
-// PatchRelease returns the stable version with format "vx.y.z".
-func (r *ReleaseVersion) PatchRelease() string {
+// ReleaseVersion returns the current version with format "vx.y.z".
+// It could be patch release or pre-release
+func (r *ReleaseVersion) ReleaseVersion() string {
 	if r.Version == nil {
 		return "<nil>"
 	}
 
-	return fmt.Sprintf("v%d.%d.%d", r.Version.Major(), r.Version.Minor(), r.Version.Patch())
+	return r.String()
+}
+
+// removeGitVersionCommits removes the git commit info from the version
+// The git version looks like: v1.0.4-14-g2414721
+// the current head of my "parent" branch is based on v1.0.4,
+// but since it has a few commits on top of that, describe has added the number of additional commits ("14")
+// and an abbreviated object name for the commit itself ("2414721") at the end.
+func removeGitVersionCommits(gitVersion string) string {
+	// This match the commit info part of the git version
+	splitRE := regexp.MustCompile("-[0-9]+-g[0-9a-z]{7}")
+	match := splitRE.Split(gitVersion, 2)
+
+	return match[0]
 }
