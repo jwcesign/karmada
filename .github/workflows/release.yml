@@ -24,29 +24,11 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: 1.20.4
-    - name: Making and packaging
-      env:
-        GOOS: ${{ matrix.os }}
-        GOARCH: ${{ matrix.arch }}
-      run: make release-${{ matrix.target }}
-    - name: Making helm charts
-      env:
-        VERSION: ${{ github.ref_name }}
-      run: make package-chart
-    - name: Uploading assets...
-      if: ${{ !env.ACT }}
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          _output/release/${{ matrix.target }}-${{ matrix.os }}-${{ matrix.arch }}.tgz
-          _output/release/${{ matrix.target }}-${{ matrix.os }}-${{ matrix.arch }}.tgz.sha256
-          _output/charts/karmada-chart-${{ github.ref_name }}.tgz
-          _output/charts/karmada-chart-${{ github.ref_name }}.tgz.sha256
-  update-krew-index:
+  update-crds:
     needs: release-assests
-    name: Update krew-index
-    runs-on: ubuntu-20.04
-    steps:
-    - uses: actions/checkout@v3
-    - name: Update new version in krew-index
-      uses: rajatjindal/krew-release-bot@v0.0.40
+    name: Upload crd assests
+    use: a7ul/tar-action@v1.1.0
+    with:
+      command: x
+      cwd: ./charts/karmada/_crds
+      files: crds.tar.gz
