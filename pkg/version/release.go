@@ -1,7 +1,6 @@
 package version
 
 import (
-	"fmt"
 	"regexp"
 
 	utilversion "k8s.io/apimachinery/pkg/util/version"
@@ -25,20 +24,6 @@ func ParseGitVersion(gitVersion string) (*ReleaseVersion, error) {
 	return &ReleaseVersion{
 		Version: v,
 	}, nil
-}
-
-// FirstMinorRelease returns the minor release but the patch releases always be 0(vx.y.0). e.g:
-// - v1.2.1-12-g2eb92858 --> v1.2.0
-// - v1.2.3-12-g2e860210 --> v1.2.0
-func (r *ReleaseVersion) FirstMinorRelease() string {
-	if r.Version == nil {
-		return "<nil>"
-	}
-
-	if r.PreRelease() != "" {
-		return fmt.Sprintf("v%d.%d.0", r.Version.Major(), r.Version.Minor()-1)
-	}
-	return fmt.Sprintf("v%d.%d.0", r.Version.Major(), r.Version.Minor())
 }
 
 // ReleaseVersion returns the current version with format "vx.y.z".
