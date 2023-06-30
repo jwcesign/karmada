@@ -212,6 +212,9 @@ github.com/google/shlex
 # github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
+# github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
+## explicit
+github.com/gorhill/cronexpr
 # github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7
 ## explicit
 github.com/gregjones/httpcache
@@ -398,6 +401,9 @@ github.com/prometheus/procfs/internal/util
 # github.com/rivo/uniseg v0.4.2
 ## explicit; go 1.18
 github.com/rivo/uniseg
+# github.com/robfig/cron/v3 v3.0.1
+## explicit; go 1.12
+github.com/robfig/cron/v3
 # github.com/rogpeppe/go-internal v1.6.1
 ## explicit; go 1.11
 github.com/rogpeppe/go-internal/fmtsort
