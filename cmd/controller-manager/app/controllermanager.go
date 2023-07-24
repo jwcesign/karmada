@@ -22,7 +22,7 @@ import (
 	"k8s.io/metrics/pkg/client/external_metrics"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	crtlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -118,12 +118,12 @@ func Run(ctx context.Context, opts *options.Options) error {
 
 	profileflag.ListenAndServe(opts.ProfileOpts)
 
-	config, err := controllerruntime.GetConfig()
+	controlPlaneRestConfig, err := controllerruntime.GetConfig()
 	if err != nil {
 		panic(err)
 	}
-	config.QPS, config.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
-	controllerManager, err := controllerruntime.NewManager(config, controllerruntime.Options{
+	controlPlaneRestConfig.QPS, controlPlaneRestConfig.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
+	controllerManager, err := controllerruntime.NewManager(controlPlaneRestConfig, controllerruntime.Options{
 		Logger:                     klog.Background(),
 		Scheme:                     gclient.NewSchema(),
 		SyncPeriod:                 &opts.ResyncPeriod.Duration,
@@ -141,7 +141,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 		BaseContext: func() context.Context {
 			return ctx
 		},
-		Controller: v1alpha1.ControllerConfigurationSpec{
+		Controller: config.Controller{
 			GroupKindConcurrency: map[string]int{
 				workv1alpha1.SchemeGroupVersion.WithKind("Work").GroupKind().String():                     opts.ConcurrentWorkSyncs,
 				workv1alpha2.SchemeGroupVersion.WithKind("ResourceBinding").GroupKind().String():          opts.ConcurrentResourceBindingSyncs,
