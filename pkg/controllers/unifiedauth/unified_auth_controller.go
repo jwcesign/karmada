@@ -249,14 +249,14 @@ func (c *Controller) SetupWithManager(mgr controllerruntime.Manager) error {
 }
 
 func (c *Controller) newClusterRoleMapFunc() handler.MapFunc {
-	return func(a client.Object) []reconcile.Request {
+	return func(ctx context.Context, a client.Object) []reconcile.Request {
 		clusterRole := a.(*rbacv1.ClusterRole)
 		return c.generateRequestsFromClusterRole(clusterRole)
 	}
 }
 
 func (c *Controller) newClusterRoleBindingMapFunc() handler.MapFunc {
-	return func(a client.Object) []reconcile.Request {
+	return func(ctx context.Context, a client.Object) []reconcile.Request {
 		clusterRoleBinding := a.(*rbacv1.ClusterRoleBinding)
 		if clusterRoleBinding.RoleRef.Kind != util.ClusterRoleKind {
 			return nil

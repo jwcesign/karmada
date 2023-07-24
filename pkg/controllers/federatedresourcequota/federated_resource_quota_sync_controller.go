@@ -77,7 +77,7 @@ func (c *SyncController) Reconcile(ctx context.Context, req controllerruntime.Re
 // SetupWithManager creates a controller and register to controller manager.
 func (c *SyncController) SetupWithManager(mgr controllerruntime.Manager) error {
 	fn := handler.MapFunc(
-		func(client.Object) []reconcile.Request {
+		func(context.Context, client.Object) []reconcile.Request {
 			var requests []reconcile.Request
 
 			FederatedResourceQuotaList := &policyv1alpha1.FederatedResourceQuotaList{}

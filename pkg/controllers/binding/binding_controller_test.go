@@ -288,7 +288,7 @@ func TestResourceBindingController_newOverridePolicyFunc(t *testing.T) {
 			if (got == nil) != tt.want {
 				t.Errorf("newOverridePolicyFunc() is not same as want:%v", tt.want)
 			}
-			if (got(client.Object(tempOP)) == nil) == tt.obIsNil {
+			if (got(context.TODO(), client.Object(tempOP)) == nil) == tt.obIsNil {
 				t.Errorf("newOverridePolicyFunc() got() result is not same as want: %v", tt.obIsNil)
 			}
 		})

@@ -158,7 +158,7 @@ func (c *ResourceBindingController) SetupWithManager(mgr controllerruntime.Manag
 }
 
 func (c *ResourceBindingController) newOverridePolicyFunc() handler.MapFunc {
-	return func(a client.Object) []reconcile.Request {
+	return func(ctx context.Context, a client.Object) []reconcile.Request {
 		var overrideRS []policyv1alpha1.ResourceSelector
 		var namespace string
 		switch t := a.(type) {

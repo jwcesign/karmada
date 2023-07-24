@@ -74,7 +74,7 @@ func (c *StatusController) Reconcile(ctx context.Context, req controllerruntime.
 // SetupWithManager creates a controller and register to controller manager.
 func (c *StatusController) SetupWithManager(mgr controllerruntime.Manager) error {
 	fn := handler.MapFunc(
-		func(obj client.Object) []reconcile.Request {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			var requests []reconcile.Request
 
 			quotaNamespace, namespaceExist := obj.GetLabels()[util.FederatedResourceQuotaNamespaceLabel]

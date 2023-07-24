@@ -170,7 +170,7 @@ func (c *Controller) buildWorks(namespace *corev1.Namespace, clusters []clusterv
 // SetupWithManager creates a controller and register to controller manager.
 func (c *Controller) SetupWithManager(mgr controllerruntime.Manager) error {
 	clusterNamespaceFn := handler.MapFunc(
-		func(a client.Object) []reconcile.Request {
+		func(ctx context.Context, a client.Object) []reconcile.Request {
 			var requests []reconcile.Request
 			namespaceList := &corev1.NamespaceList{}
 			if err := c.Client.List(context.TODO(), namespaceList); err != nil {
@@ -202,7 +202,7 @@ func (c *Controller) SetupWithManager(mgr controllerruntime.Manager) error {
 	})
 
 	clusterOverridePolicyNamespaceFn := handler.MapFunc(
-		func(obj client.Object) []reconcile.Request {
+		func(ctx context.Context, obj client.Object) []reconcile.Request {
 			var requests []reconcile.Request
 			cop, ok := obj.(*policyv1alpha1.ClusterOverridePolicy)
 			if !ok {
