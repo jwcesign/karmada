@@ -99,14 +99,14 @@ func Run(ctx context.Context, opts *options.Options) error {
 	hookManager, err := controllerruntime.NewManager(config, controllerruntime.Options{
 		Logger: klog.Background(),
 		Scheme: gclient.NewSchema(),
-		WebhookServer: &webhook.Server{
+		WebhookServer: webhook.NewServer(webhook.Options{
 			Host:          opts.BindAddress,
 			Port:          opts.SecurePort,
 			CertDir:       opts.CertDir,
 			CertName:      opts.CertName,
 			KeyName:       opts.KeyName,
 			TLSMinVersion: opts.TLSMinVersion,
-		},
+		}),
 		LeaderElection:         false,
 		MetricsBindAddress:     opts.MetricsBindAddress,
 		HealthProbeBindAddress: opts.HealthProbeBindAddress,
@@ -139,7 +139,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 	hookServer.Register("/validate-multiclusteringress", &webhook.Admission{Handler: &multiclusteringress.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/validate-multiclusterservice", &webhook.Admission{Handler: &multiclusterservice.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/mutate-federatedhpa", &webhook.Admission{Handler: &federatedhpa.MutatingAdmission{Decoder: decoder}})
-	hookServer.WebhookMux.Handle("/readyz/", http.StripPrefix("/readyz/", &healthz.Handler{}))
+	hookServer.WebhookMux().Handle("/readyz/", http.StripPrefix("/readyz/", &healthz.Handler{}))
 
 	// blocks until the context is done.
 	if err := hookManager.Start(ctx); err != nil {
