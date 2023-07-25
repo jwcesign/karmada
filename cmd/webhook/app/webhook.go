@@ -130,7 +130,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 	hookServer.Register("/validate-overridepolicy", &webhook.Admission{Handler: &overridepolicy.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/validate-clusteroverridepolicy", &webhook.Admission{Handler: &clusteroverridepolicy.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/mutate-work", &webhook.Admission{Handler: &work.MutatingAdmission{Decoder: decoder}})
-	hookServer.Register("/convert", &conversion.Webhook{})
+	hookServer.Register("/convert", conversion.NewWebhookHandler(hookManager.GetScheme()))
 	hookServer.Register("/validate-resourceinterpreterwebhookconfiguration", &webhook.Admission{Handler: &configuration.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/validate-federatedresourcequota", &webhook.Admission{Handler: &federatedresourcequota.ValidatingAdmission{Decoder: decoder}})
 	hookServer.Register("/validate-federatedhpa", &webhook.Admission{Handler: &federatedhpa.ValidatingAdmission{Decoder: decoder}})
