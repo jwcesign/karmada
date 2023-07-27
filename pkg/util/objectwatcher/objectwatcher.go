@@ -21,6 +21,7 @@ import (
 	"github.com/karmada-io/karmada/pkg/util/fedinformer/keys"
 	"github.com/karmada-io/karmada/pkg/util/helper"
 	"github.com/karmada-io/karmada/pkg/util/lifted"
+	"github.com/karmada-io/karmada/pkg/util/names"
 	"github.com/karmada-io/karmada/pkg/util/restmapper"
 )
 
@@ -268,6 +269,11 @@ func (o *objectWatcherImpl) NeedsUpdate(clusterName string, desiredObj, clusterO
 func (o *objectWatcherImpl) allowUpdate(clusterName string, desiredObj, clusterObj *unstructured.Unstructured) bool {
 	// If the existing resource is managed by Karmada, then the updating is allowed.
 	if util.GetLabelValue(desiredObj.GetLabels(), workv1alpha1.WorkNameLabel) == util.GetLabelValue(clusterObj.GetLabels(), workv1alpha1.WorkNameLabel) {
+		return true
+	}
+
+	// TODO: delete it in release-1.8
+	if util.GetLabelValue(desiredObj.GetLabels(), workv1alpha1.WorkNameLabel) == names.GenerateWorkName(clusterObj.GetKind(), clusterObj.GetName(), clusterObj.GetNamespace()) {
 		return true
 	}
 
