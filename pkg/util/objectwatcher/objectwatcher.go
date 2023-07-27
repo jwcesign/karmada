@@ -273,9 +273,9 @@ func (o *objectWatcherImpl) allowUpdate(clusterName string, desiredObj, clusterO
 	}
 
 	// TODO: delete it in release-1.8
-	klog.Infof("jw:%s / %s", util.GetLabelValue(desiredObj.GetLabels(),
-		workv1alpha1.WorkNameLabel), names.GenerateWorkName(clusterObj.GetKind(), clusterObj.GetName(), clusterObj.GetNamespace()))
-	if util.GetLabelValue(desiredObj.GetLabels(), workv1alpha1.WorkNameLabel) == names.GenerateWorkName(clusterObj.GetKind(), clusterObj.GetName(), clusterObj.GetNamespace()) {
+	klog.Infof("jw:%s / %s", util.GetLabelValue(clusterObj.GetLabels(),
+		workv1alpha1.WorkNameLabel), names.GenerateWorkName(desiredObj.GetKind(), desiredObj.GetName(), desiredObj.GetNamespace()))
+	if util.GetLabelValue(clusterObj.GetLabels(), workv1alpha1.WorkNameLabel) == names.GenerateWorkName(desiredObj.GetKind(), desiredObj.GetName(), desiredObj.GetNamespace()) {
 		return true
 	}
 
