@@ -210,7 +210,7 @@ func (c *Controller) buildImpersonationClusterRoleBinding(cluster *clusterv1alph
 func (c *Controller) buildWorks(cluster *clusterv1alpha1.Cluster, obj *unstructured.Unstructured) error {
 	workNamespace := names.GenerateExecutionSpaceName(cluster.Name)
 
-	clusterRoleBindingWorkName := names.GenerateWorkName(obj.GetKind(), obj.GetName(), obj.GetNamespace())
+	clusterRoleBindingWorkName := names.GenerateBindingWorkName(obj.GetAPIVersion(), obj.GetKind(), obj.GetName(), obj.GetNamespace(), "")
 	objectMeta := metav1.ObjectMeta{
 		Name:       clusterRoleBindingWorkName,
 		Namespace:  workNamespace,

@@ -134,7 +134,7 @@ func (c *Controller) buildWorks(namespace *corev1.Namespace, clusters []clusterv
 
 			workNamespace := names.GenerateExecutionSpaceName(cluster.Name)
 
-			workName := names.GenerateWorkName(namespaceObj.GetKind(), namespaceObj.GetName(), namespaceObj.GetNamespace())
+			workName := names.GenerateBindingWorkName(namespaceObj.GetAPIVersion(), namespaceObj.GetKind(), namespaceObj.GetName(), namespaceObj.GetNamespace(), "")
 			objectMeta := metav1.ObjectMeta{
 				Name:       workName,
 				Namespace:  workNamespace,

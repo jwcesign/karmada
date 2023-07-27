@@ -243,7 +243,7 @@ var _ = ginkgo.Describe("[resource-status collection] resource status collection
 
 			ginkgo.By("check service ResourceBindings apply status ", func() {
 				gomega.Eventually(func(g gomega.Gomega) (metav1.ConditionStatus, error) {
-					resourceBindingName := names.GenerateBindingName(service.Kind, service.Name)
+					resourceBindingName := names.GenerateBindingWorkName(service.APIVersion, service.Kind, service.Name, service.Namespace, "")
 					resourceBinding, err := karmadaClient.WorkV1alpha2().ResourceBindings(serviceNamespace).Get(context.TODO(), resourceBindingName, metav1.GetOptions{})
 					g.Expect(err).NotTo(gomega.HaveOccurred())
 					var fullyAppliedStatus metav1.ConditionStatus

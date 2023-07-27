@@ -510,7 +510,8 @@ func buildAttachedBinding(binding *workv1alpha2.ResourceBinding, object *unstruc
 
 	return &workv1alpha2.ResourceBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      names.GenerateBindingName(object.GetKind(), object.GetName()),
+			Name: names.GenerateBindingWorkName(object.GetAPIVersion(),
+				object.GetKind(), object.GetName(), object.GetNamespace(), ""),
 			Namespace: binding.GetNamespace(),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(object, object.GroupVersionKind()),

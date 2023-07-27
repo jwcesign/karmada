@@ -943,7 +943,8 @@ func (g *CommandGetOptions) getRBInKarmada() error {
 
 func getRBKey(gvk schema.GroupVersionKind, row metav1.TableRow, cluster string) string {
 	resourceName, _ := row.Cells[0].(string)
-	rbKey := names.GenerateBindingName(gvk.Kind, resourceName)
+	// TODO: jw
+	rbKey := names.GenerateBindingWorkName(gvk.Group+"/"+gvk.Version, gvk.Kind, resourceName, "", "")
 
 	return fmt.Sprintf("%s-%s", cluster, rbKey)
 }

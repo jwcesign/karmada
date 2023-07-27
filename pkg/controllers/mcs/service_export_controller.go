@@ -386,7 +386,8 @@ func reportEndpointSlice(c client.Client, endpointSlice *unstructured.Unstructur
 	executionSpace := names.GenerateExecutionSpaceName(clusterName)
 
 	workMeta := metav1.ObjectMeta{
-		Name:      names.GenerateWorkName(endpointSlice.GetKind(), endpointSlice.GetName(), endpointSlice.GetNamespace()),
+		Name: names.GenerateBindingWorkName(endpointSlice.GetAPIVersion(),
+			endpointSlice.GetKind(), endpointSlice.GetName(), endpointSlice.GetNamespace(), ""),
 		Namespace: executionSpace,
 		Labels: map[string]string{
 			util.ServiceNamespaceLabel: endpointSlice.GetNamespace(),
@@ -435,7 +436,8 @@ func cleanupWorkWithEndpointSliceDelete(c client.Client, endpointSliceKey keys.F
 
 	workNamespaceKey := types.NamespacedName{
 		Namespace: executionSpace,
-		Name:      names.GenerateWorkName(endpointSliceKey.Kind, endpointSliceKey.Name, endpointSliceKey.Namespace),
+		Name: names.GenerateBindingWorkName(endpointSliceKey.Group+"/"+endpointSliceKey.Version,
+			endpointSliceKey.Kind, endpointSliceKey.Name, endpointSliceKey.Namespace, ""),
 	}
 	work := &workv1alpha1.Work{}
 	if err := c.Get(context.TODO(), workNamespaceKey, work); err != nil {

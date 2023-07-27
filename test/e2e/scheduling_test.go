@@ -177,7 +177,7 @@ var _ = ginkgo.Describe("propagation with label and group constraints testing", 
 
 		ginkgo.It("crd with specified label and group constraints propagation testing", func() {
 			ginkgo.By("collect the target clusters in cluster resource binding", func() {
-				bindingName := names.GenerateBindingName(crd.Kind, crd.Name)
+				bindingName := names.GenerateBindingWorkName(crd.APIVersion, crd.Kind, crd.Name, crd.Namespace, "")
 				fmt.Printf("crd kind is %s, name is %s\n", crd.Kind, crd.Name)
 				binding := &workv1alpha2.ClusterResourceBinding{}
 
@@ -284,7 +284,7 @@ var _ = ginkgo.Describe("propagation with label and group constraints testing", 
 
 		ginkgo.It("Job propagation with label and group constraints testing", func() {
 			ginkgo.By("collect the target clusters in resource binding", func() {
-				bindingName := names.GenerateBindingName(job.Kind, job.Name)
+				bindingName := names.GenerateBindingWorkName(job.APIVersion, job.Kind, job.Name, job.Namespace, "")
 				binding := &workv1alpha2.ResourceBinding{}
 
 				fmt.Printf("MaxGroups= %v, MinGroups= %v\n", maxGroups, minGroups)
@@ -684,7 +684,7 @@ var _ = ginkgo.Describe("[JobReplicaScheduling] JobReplicaSchedulingStrategy tes
 func getResourceBinding(workload interface{}) (*workv1alpha2.ResourceBinding, error) {
 	obj, err := utilhelper.ToUnstructured(workload)
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-	bindingName := names.GenerateBindingName(obj.GetKind(), obj.GetName())
+	bindingName := names.GenerateBindingWorkName(obj.GetAPIVersion(), obj.GetKind(), obj.GetName(), obj.GetNamespace(), "")
 	binding := &workv1alpha2.ResourceBinding{}
 
 	err = controlPlaneClient.Get(context.TODO(), client.ObjectKey{Namespace: obj.GetNamespace(), Name: bindingName}, binding)
@@ -695,7 +695,7 @@ func getResourceBinding(workload interface{}) (*workv1alpha2.ResourceBinding, er
 func getClusterResourceBinding(workload interface{}) (*workv1alpha2.ClusterResourceBinding, error) {
 	obj, err := utilhelper.ToUnstructured(workload)
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-	bindingName := names.GenerateBindingName(obj.GetKind(), obj.GetName())
+	bindingName := names.GenerateBindingWorkName(obj.GetAPIVersion(), obj.GetKind(), obj.GetName(), obj.GetNamespace(), "")
 	binding := &workv1alpha2.ClusterResourceBinding{}
 
 	err = controlPlaneClient.Get(context.TODO(), client.ObjectKey{Name: bindingName}, binding)

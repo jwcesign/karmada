@@ -104,7 +104,7 @@ func ensureWork(
 		}
 
 		workMeta := metav1.ObjectMeta{
-			Name:        names.GenerateWorkName(clonedWorkload.GetKind(), clonedWorkload.GetName(), clonedWorkload.GetNamespace()),
+			Name:        names.GenerateBindingWorkName(clonedWorkload.GetAPIVersion(), clonedWorkload.GetKind(), clonedWorkload.GetName(), clonedWorkload.GetNamespace(), ""),
 			Namespace:   workNamespace,
 			Finalizers:  []string{util.ExecutionControllerFinalizer},
 			Labels:      workLabel,
@@ -140,7 +140,7 @@ func mergeTargetClusters(targetClusters []workv1alpha2.TargetCluster, requiredBy
 func mergeLabel(workload *unstructured.Unstructured, workNamespace string, binding metav1.Object, scope apiextensionsv1.ResourceScope) map[string]string {
 	var workLabel = make(map[string]string)
 	util.MergeLabel(workload, workv1alpha1.WorkNamespaceLabel, workNamespace)
-	util.MergeLabel(workload, workv1alpha1.WorkNameLabel, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
+	util.MergeLabel(workload, workv1alpha1.WorkNameLabel, names.GenerateBindingWorkName(workload.GetAPIVersion(), workload.GetKind(), workload.GetName(), workload.GetNamespace(), ""))
 	util.MergeLabel(workload, util.ManagedByKarmadaLabel, util.ManagedByKarmadaLabelValue)
 	if scope == apiextensionsv1.NamespaceScoped {
 		util.MergeLabel(workload, workv1alpha2.ResourceBindingReferenceKey, names.GenerateBindingReferenceKey(binding.GetNamespace(), binding.GetName()))

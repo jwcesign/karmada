@@ -47,7 +47,7 @@ func (c *HorizontalPodAutoscalerController) Reconcile(ctx context.Context, req c
 	if err := c.Client.Get(ctx, req.NamespacedName, hpa); err != nil {
 		// The resource may no longer exist, in which case we delete related works.
 		if apierrors.IsNotFound(err) {
-			if err := c.deleteWorks(names.GenerateWorkName(util.HorizontalPodAutoscalerKind, req.Name, req.Namespace)); err != nil {
+			if err := c.deleteWorks(names.GenerateBindingWorkName("", util.HorizontalPodAutoscalerKind, req.Name, req.Namespace, "")); err != nil {
 				return controllerruntime.Result{Requeue: true}, err
 			}
 			return controllerruntime.Result{}, err
@@ -88,7 +88,7 @@ func (c *HorizontalPodAutoscalerController) buildWorks(hpa *autoscalingv1.Horizo
 	}
 	for _, clusterName := range clusters {
 		workNamespace := names.GenerateExecutionSpaceName(clusterName)
-		workName := names.GenerateWorkName(hpaObj.GetKind(), hpaObj.GetName(), hpa.GetNamespace())
+		workName := names.GenerateBindingWorkName(hpaObj.GetAPIVersion(), hpaObj.GetKind(), hpaObj.GetName(), hpa.GetNamespace(), "")
 		objectMeta := metav1.ObjectMeta{
 			Name:       workName,
 			Namespace:  workNamespace,
@@ -136,7 +136,8 @@ func (c *HorizontalPodAutoscalerController) getTargetPlacement(objRef autoscalin
 		klog.Errorf("Failed to transform object(%s/%s): %v", namespace, objRef.Name, err)
 		return nil, err
 	}
-	bindingName := names.GenerateBindingName(unstructuredWorkLoad.GetKind(), unstructuredWorkLoad.GetName())
+	bindingName := names.GenerateBindingWorkName(unstructuredWorkLoad.GetAPIVersion(),
+		unstructuredWorkLoad.GetKind(), unstructuredWorkLoad.GetName(), unstructuredWorkLoad.GetNamespace(), "")
 	binding := &workv1alpha2.ResourceBinding{}
 	namespacedName := types.NamespacedName{
 		Namespace: namespace,

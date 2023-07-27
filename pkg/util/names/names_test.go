@@ -116,57 +116,65 @@ func TestGenerateBindingReferenceKey(t *testing.T) {
 
 func TestGenerateBindingName(t *testing.T) {
 	tests := []struct {
-		testCase string
-		kind     string
-		name     string
-		expect   string
+		testCase   string
+		apiVersion string
+		kind       string
+		name       string
+		expect     string
 	}{
 		{
-			testCase: "uppercase kind",
-			kind:     "Pods",
-			name:     "pod",
-			expect:   "pod-pods",
+			testCase:   "uppercase kind",
+			apiVersion: "core/v1",
+			kind:       "Pods",
+			name:       "pod",
+			expect:     "pod-pods",
 		},
 		{
-			testCase: "uppercase name",
-			kind:     "pods",
-			name:     "Pod",
-			expect:   "pod-pods",
+			testCase:   "uppercase name",
+			apiVersion: "core/v1",
+			kind:       "pods",
+			name:       "Pod",
+			expect:     "pod-pods",
 		},
 		{
-			testCase: "lowercase name",
-			kind:     "pods",
-			name:     "Pod",
-			expect:   "pod-pods",
+			testCase:   "lowercase name",
+			apiVersion: "core/v1",
+			kind:       "pods",
+			name:       "Pod",
+			expect:     "pod-pods",
 		},
 		// RBAC kind resource test with colon character in the name
 		{
-			testCase: "role kind resource",
-			kind:     "Role",
-			name:     "system:controller:tom",
-			expect:   "system.controller.tom-role",
+			testCase:   "role kind resource",
+			apiVersion: "rbac.authorization.k8s.io/v1",
+			kind:       "Role",
+			name:       "system:controller:tom",
+			expect:     "system.controller.tom-role",
 		},
 		{
-			testCase: "clusterRole kind resource",
-			kind:     "ClusterRole",
-			name:     "system::tom",
-			expect:   "system..tom-clusterrole",
+			testCase:   "clusterRole kind resource",
+			apiVersion: "rbac.authorization.k8s.io/v1",
+			kind:       "ClusterRole",
+			name:       "system::tom",
+			expect:     "system..tom-clusterrole",
 		},
 		{
-			testCase: "roleBinding kind resource",
-			kind:     "RoleBinding",
-			name:     "system::tt:tom",
-			expect:   "system..tt.tom-rolebinding",
+			testCase:   "roleBinding kind resource",
+			apiVersion: "rbac.authorization.k8s.io/v1",
+			kind:       "RoleBinding",
+			name:       "system::tt:tom",
+			expect:     "system..tt.tom-rolebinding",
 		},
 		{
-			testCase: "clusterRoleBinding kind resource",
-			kind:     "ClusterRoleBinding",
-			name:     "system:tt:tom",
-			expect:   "system.tt.tom-clusterrolebinding",
+			testCase:   "clusterRoleBinding kind resource",
+			apiVersion: "rbac.authorization.k8s.io/v1",
+			kind:       "ClusterRoleBinding",
+			name:       "system:tt:tom",
+			expect:     "system.tt.tom-clusterrolebinding",
 		},
 	}
 	for _, test := range tests {
-		if result := GenerateBindingName(test.kind, test.name); result != test.expect {
+		if result := GenerateBindingWorkName(test.apiVersion, test.kind, test.name, "", ""); result != test.expect {
 			t.Errorf("Test %s failed: expected %v, but got %v", test.testCase, test.expect, result)
 		}
 	}
@@ -197,7 +205,7 @@ func TestGenerateWorkName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := GenerateWorkName(test.kind, test.name, test.namespace)
+		got := GenerateBindingWorkName("", test.kind, test.name, test.namespace, "")
 
 		hash := fnv.New32a()
 		hashutil.DeepHashObject(hash, test.workname)

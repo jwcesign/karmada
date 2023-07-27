@@ -145,7 +145,7 @@ func (c *SyncController) buildWorks(quota *policyv1alpha1.FederatedResourceQuota
 	var errs []error
 	for _, cluster := range clusters {
 		workNamespace := names.GenerateExecutionSpaceName(cluster.Name)
-		workName := names.GenerateWorkName("ResourceQuota", quota.Name, quota.Namespace)
+		workName := names.GenerateBindingWorkName(quota.APIVersion, quota.Kind, quota.Name, quota.Namespace, "")
 
 		resourceQuota := &corev1.ResourceQuota{}
 		resourceQuota.APIVersion = "v1"
