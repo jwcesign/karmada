@@ -26,17 +26,30 @@ func (d *ResourceDetector) propagateResource(object *unstructured.Unstructured, 
 	// 1. Check if the object has been claimed by a PropagationPolicy,
 	// if so, just apply it.
 	policyLabels := object.GetLabels()
-	claimedNamespace := util.GetLabelValue(policyLabels, policyv1alpha1.PropagationPolicyNamespaceLabel)
-	claimedName := util.GetLabelValue(policyLabels, policyv1alpha1.PropagationPolicyNameLabel)
-	if claimedNamespace != "" && claimedName != "" {
-		return d.getAndApplyPolicy(object, objectKey, claimedNamespace, claimedName)
+	policyAnnotations := object.GetAnnotations()
+	claimedNamespaceAnnotation := util.GetAnnotationValue(policyAnnotations, policyv1alpha1.PropagationPolicyNamespaceAnnotation)
+	claimedNameAnnotation := util.GetAnnotationValue(policyAnnotations, policyv1alpha1.PropagationPolicyNameAnnotation)
+	if claimedNamespaceAnnotation != "" && claimedNameAnnotation != "" {
+		return d.getAndApplyPolicy(object, objectKey, claimedNamespaceAnnotation, claimedNameAnnotation)
+	}
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	claimedNamespaceLabel := util.GetLabelValue(policyLabels, policyv1alpha1.PropagationPolicyNamespaceLabel)
+	claimedNameLabel := util.GetLabelValue(policyLabels, policyv1alpha1.PropagationPolicyNameLabel)
+	if claimedNamespaceLabel != "" && claimedNameLabel != "" {
+		return d.getAndApplyPolicy(object, objectKey, claimedNamespaceLabel, claimedNameLabel)
 	}
 
 	// 2. Check if the object has been claimed by a ClusterPropagationPolicy,
 	// if so, just apply it.
-	claimedName = util.GetLabelValue(policyLabels, policyv1alpha1.ClusterPropagationPolicyLabel)
-	if claimedName != "" {
-		return d.getAndApplyClusterPolicy(object, objectKey, claimedName)
+	claimedNameAnnotation = util.GetAnnotationValue(policyAnnotations, policyv1alpha1.ClusterPropagationPolicyAnnotation)
+	if claimedNameAnnotation != "" {
+		return d.getAndApplyClusterPolicy(object, objectKey, claimedNameAnnotation)
+	}
+
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	claimedNameLabel = util.GetLabelValue(policyLabels, policyv1alpha1.ClusterPropagationPolicyLabel)
+	if claimedNameLabel != "" {
+		return d.getAndApplyClusterPolicy(object, objectKey, claimedNameLabel)
 	}
 
 	// 3. attempt to match policy in its namespace.

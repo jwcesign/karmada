@@ -386,17 +386,16 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 		}
 	}()
 
-	if err := d.ClaimPolicyForObject(object, policy.Namespace, policy.Name); err != nil {
+	if err := d.ClaimPolicyForObject(object, policy); err != nil {
 		klog.Errorf("Failed to claim policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
 
-	policyLabels := map[string]string{
-		policyv1alpha1.PropagationPolicyNamespaceLabel: policy.GetNamespace(),
-		policyv1alpha1.PropagationPolicyNameLabel:      policy.GetName(),
+	policyLabels, policyAnnotations, err := d.generateResourceBindingLabelsAnnotations(object, objectKey, policy.Namespace, policy.Name, string(policy.UID))
+	if err != nil {
+		return err
 	}
-
-	binding, err := d.BuildResourceBinding(object, objectKey, policyLabels, &policy.Spec)
+	binding, err := d.BuildResourceBinding(object, objectKey, policyLabels, policyAnnotations, &policy.Spec)
 	if err != nil {
 		klog.Errorf("Failed to build resourceBinding for object: %s. error: %v", objectKey, err)
 		return err
@@ -445,6 +444,61 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 	return nil
 }
 
+// generateResourceBindingLabelsAnnotations generates labels and annotations for ResourceBinding
+func (d *ResourceDetector) generateResourceBindingLabelsAnnotations(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	policyNamespace, policyName, refrenceKey string) (labels, annotations map[string]string, err error) {
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	bindingName := names.GenerateBindingWorkName(object.GetAPIVersion(), object.GetKind(), object.GetName(), object.GetNamespace(), "")
+	binding := &workv1alpha2.ResourceBinding{}
+	err = d.Client.Get(context.TODO(), client.ObjectKey{Namespace: object.GetNamespace(), Name: bindingName}, binding)
+	if err != nil && !apierrors.IsNotFound(err) {
+		klog.Errorf("Failed to get resourceBinding for object: %s. error: %v", objectKey, err)
+		return nil, nil, err
+	}
+	labels = map[string]string{}
+	if err == nil {
+		labels = binding.DeepCopy().Labels
+		if labels == nil {
+			labels = map[string]string{}
+		}
+	}
+	labels[policyv1alpha1.PropagationPolicyReferenceKey] = refrenceKey
+
+	annotations = map[string]string{
+		policyv1alpha1.PropagationPolicyNamespaceAnnotation: policyNamespace,
+		policyv1alpha1.PropagationPolicyNameAnnotation:      policyName,
+	}
+
+	return labels, annotations, nil
+}
+
+// generateClusterResourceBindingLabelsAnnotations generates labels and annotations for ClusterResourceBinding
+func (d *ResourceDetector) generateClusterResourceBindingLabelsAnnotations(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	policyName, refrenceKey string) (labels, annotations map[string]string, err error) {
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	bindingName := names.GenerateBindingWorkName(object.GetAPIVersion(), object.GetKind(), object.GetName(), object.GetNamespace(), "")
+	binding := &workv1alpha2.ClusterResourceBinding{}
+	err = d.Client.Get(context.TODO(), client.ObjectKey{Namespace: object.GetNamespace(), Name: bindingName}, binding)
+	if err != nil && !apierrors.IsNotFound(err) {
+		klog.Errorf("Failed to get resourceBinding for object: %s. error: %v", objectKey, err)
+		return nil, nil, err
+	}
+	labels = map[string]string{}
+	if err == nil {
+		labels = binding.DeepCopy().Labels
+		if labels == nil {
+			labels = map[string]string{}
+		}
+	}
+	labels[policyv1alpha1.PropagationPolicyReferenceKey] = refrenceKey
+
+	annotations = map[string]string{
+		policyv1alpha1.ClusterPropagationPolicyAnnotation: policyName,
+	}
+
+	return labels, annotations, nil
+}
+
 // ApplyClusterPolicy starts propagate the object referenced by object key according to ClusterPropagationPolicy.
 // nolint:gocyclo
 func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured, objectKey keys.ClusterWideKey, policy *policyv1alpha1.ClusterPropagationPolicy) (err error) {
@@ -460,20 +514,20 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 		}
 	}()
 
-	if err := d.ClaimClusterPolicyForObject(object, policy.Name); err != nil {
+	if err := d.ClaimClusterPolicyForObject(object, policy); err != nil {
 		klog.Errorf("Failed to claim cluster policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
 
-	policyLabels := map[string]string{
-		policyv1alpha1.ClusterPropagationPolicyLabel: policy.GetName(),
+	policyLabels, policyAnnotations, err := d.generateClusterResourceBindingLabelsAnnotations(object, objectKey, policy.Name, string(policy.UID))
+	if err != nil {
+		return err
 	}
-
 	// Build `ResourceBinding` or `ClusterResourceBinding` according to the resource template's scope.
 	// For namespace-scoped resources, which namespace is not empty, building `ResourceBinding`.
 	// For cluster-scoped resources, which namespace is empty, building `ClusterResourceBinding`.
 	if object.GetNamespace() != "" {
-		binding, err := d.BuildResourceBinding(object, objectKey, policyLabels, &policy.Spec)
+		binding, err := d.BuildResourceBinding(object, objectKey, policyLabels, policyAnnotations, &policy.Spec)
 		if err != nil {
 			klog.Errorf("Failed to build resourceBinding for object: %s. error: %v", objectKey, err)
 			return err
@@ -520,7 +574,7 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 			klog.V(2).Infof("ResourceBinding(%s) is up to date.", binding.GetName())
 		}
 	} else {
-		binding, err := d.BuildClusterResourceBinding(object, objectKey, policyLabels, &policy.Spec)
+		binding, err := d.BuildClusterResourceBinding(object, objectKey, policyLabels, policyAnnotations, &policy.Spec)
 		if err != nil {
 			klog.Errorf("Failed to build clusterResourceBinding for object: %s. error: %v", objectKey, err)
 			return err
@@ -597,36 +651,50 @@ func (d *ResourceDetector) GetUnstructuredObject(objectKey keys.ClusterWideKey) 
 }
 
 // ClaimPolicyForObject set policy identifier which the object associated with.
-func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policyNamespace string, policyName string) error {
-	claimedNS := util.GetLabelValue(object.GetLabels(), policyv1alpha1.PropagationPolicyNamespaceLabel)
-	claimedName := util.GetLabelValue(object.GetLabels(), policyv1alpha1.PropagationPolicyNameLabel)
-
-	// object has been claimed, don't need to claim again
-	if claimedNS == policyNamespace && claimedName == policyName {
+func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.PropagationPolicy) error {
+	claimedNSAnnotation := util.GetAnnotationValue(object.GetAnnotations(), policyv1alpha1.PropagationPolicyNamespaceAnnotation)
+	claimedNameAnnotation := util.GetAnnotationValue(object.GetAnnotations(), policyv1alpha1.PropagationPolicyNameAnnotation)
+	if claimedNameAnnotation == policy.Name && claimedNSAnnotation == policy.Namespace {
 		return nil
 	}
 
-	util.MergeLabel(object, policyv1alpha1.PropagationPolicyNamespaceLabel, policyNamespace)
-	util.MergeLabel(object, policyv1alpha1.PropagationPolicyNameLabel, policyName)
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	claimedNSLabel := util.GetLabelValue(object.GetLabels(), policyv1alpha1.PropagationPolicyNamespaceLabel)
+	claimedNameLabel := util.GetLabelValue(object.GetLabels(), policyv1alpha1.PropagationPolicyNameLabel)
+	// object has been claimed, don't need to claim again
+	if claimedNameLabel == policy.Name && claimedNSLabel == policy.Namespace {
+		return nil
+	}
+
+	util.MergeLabel(object, policyv1alpha1.PropagationPolicyReferenceKey, string(policy.UID))
+	util.MergeAnnotation(object, policyv1alpha1.PropagationPolicyNamespaceAnnotation, policy.Namespace)
+	util.MergeAnnotation(object, policyv1alpha1.PropagationPolicyNameAnnotation, policy.Name)
 
 	return d.Client.Update(context.TODO(), object)
 }
 
 // ClaimClusterPolicyForObject set cluster identifier which the object associated with.
-func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policyName string) error {
-	claimedName := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
-
-	// object has been claimed, don't need to claim again
-	if claimedName == policyName {
+func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.ClusterPropagationPolicy) error {
+	claimedNameAnnotation := util.GetAnnotationValue(object.GetAnnotations(), policyv1alpha1.ClusterPropagationPolicyAnnotation)
+	if claimedNameAnnotation == policy.Name {
 		return nil
 	}
 
-	util.MergeLabel(object, policyv1alpha1.ClusterPropagationPolicyLabel, policyName)
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	claimedName := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
+	// object has been claimed, don't need to claim again
+	if claimedName == policy.Name {
+		return nil
+	}
+
+	util.MergeLabel(object, policyv1alpha1.ClusterPropagationPolicyReferenceKey, string(policy.UID))
+	util.MergeAnnotation(object, policyv1alpha1.ClusterPropagationPolicyAnnotation, policy.Name)
 	return d.Client.Update(context.TODO(), object)
 }
 
 // BuildResourceBinding builds a desired ResourceBinding for object.
-func (d *ResourceDetector) BuildResourceBinding(object *unstructured.Unstructured, objectKey keys.ClusterWideKey, labels map[string]string, policySpec *policyv1alpha1.PropagationSpec) (*workv1alpha2.ResourceBinding, error) {
+func (d *ResourceDetector) BuildResourceBinding(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	labels, annotations map[string]string, policySpec *policyv1alpha1.PropagationSpec) (*workv1alpha2.ResourceBinding, error) {
 	bindingName := names.GenerateBindingWorkName(object.GetAPIVersion(), object.GetKind(), object.GetName(), object.GetNamespace(), "")
 	propagationBinding := &workv1alpha2.ResourceBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -635,8 +703,9 @@ func (d *ResourceDetector) BuildResourceBinding(object *unstructured.Unstructure
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(object, objectKey.GroupVersionKind()),
 			},
-			Labels:     labels,
-			Finalizers: []string{util.BindingControllerFinalizer},
+			Annotations: annotations,
+			Labels:      labels,
+			Finalizers:  []string{util.BindingControllerFinalizer},
 		},
 		Spec: workv1alpha2.ResourceBindingSpec{
 			PropagateDeps:      policySpec.PropagateDeps,
@@ -669,7 +738,8 @@ func (d *ResourceDetector) BuildResourceBinding(object *unstructured.Unstructure
 }
 
 // BuildClusterResourceBinding builds a desired ClusterResourceBinding for object.
-func (d *ResourceDetector) BuildClusterResourceBinding(object *unstructured.Unstructured, objectKey keys.ClusterWideKey, labels map[string]string, policySpec *policyv1alpha1.PropagationSpec) (*workv1alpha2.ClusterResourceBinding, error) {
+func (d *ResourceDetector) BuildClusterResourceBinding(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	labels, annotations map[string]string, policySpec *policyv1alpha1.PropagationSpec) (*workv1alpha2.ClusterResourceBinding, error) {
 	bindingName := names.GenerateBindingWorkName(object.GetAPIVersion(), object.GetKind(), object.GetName(), object.GetNamespace(), "")
 	binding := &workv1alpha2.ClusterResourceBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -677,8 +747,9 @@ func (d *ResourceDetector) BuildClusterResourceBinding(object *unstructured.Unst
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(object, objectKey.GroupVersionKind()),
 			},
-			Labels:     labels,
-			Finalizers: []string{util.ClusterResourceBindingControllerFinalizer},
+			Annotations: annotations,
+			Labels:      labels,
+			Finalizers:  []string{util.ClusterResourceBindingControllerFinalizer},
 		},
 		Spec: workv1alpha2.ResourceBindingSpec{
 			PropagateDeps:      policySpec.PropagateDeps,

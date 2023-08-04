@@ -92,31 +92,43 @@ func GetWorksByLabelsSet(c client.Client, ls labels.Set) (*workv1alpha1.WorkList
 	return workList, c.List(context.TODO(), workList, listOpt)
 }
 
-// GetWorksByBindingNamespaceName get WorkList by matching same Namespace and same Name.
-func GetWorksByBindingNamespaceName(c client.Client, bindingNamespace, bindingName string) (*workv1alpha1.WorkList, error) {
-	referenceKey := names.GenerateBindingReferenceKey(bindingNamespace, bindingName)
+// GetWorksByBinding get WorkList by matching same Namespace and same Name.
+func GetWorksByBinding(c client.Client, bindingMeta *metav1.ObjectMeta) (*workv1alpha1.WorkList, error) {
+	// TODO: following lines are for backward compatibility, delete it in release-1.8
+	referenceKey := names.GenerateBindingReferenceKey(bindingMeta.Namespace, bindingMeta.Name)
 	var ls labels.Set
-	if bindingNamespace != "" {
+	if bindingMeta.Namespace != "" {
 		ls = labels.Set{workv1alpha2.ResourceBindingReferenceKey: referenceKey}
 	} else {
 		ls = labels.Set{workv1alpha2.ClusterResourceBindingReferenceKey: referenceKey}
 	}
+	workListDeprecated, err := GetWorksByLabelsSet(c, ls)
+	if err != nil {
+		return nil, err
+	}
 
+	if bindingMeta.Namespace != "" {
+		ls = labels.Set{workv1alpha2.ResourceBindingReferenceKey: string(bindingMeta.UID)}
+	} else {
+		ls = labels.Set{workv1alpha2.ClusterResourceBindingReferenceKey: string(bindingMeta.UID)}
+	}
 	workList, err := GetWorksByLabelsSet(c, ls)
 	if err != nil {
 		return nil, err
 	}
+	workList.Items = append(workList.Items, workListDeprecated.Items...)
+
 	retWorkList := &workv1alpha1.WorkList{}
 	// Due to the hash collision problem, we have to filter the Works by annotation.
 	// More details please refer to https://github.com/karmada-io/karmada/issues/2071.
 	for i := range workList.Items {
-		if len(bindingNamespace) > 0 { // filter Works that derived by 'ResourceBinding'
-			if util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ResourceBindingNameAnnotationKey) == bindingName &&
-				util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ResourceBindingNamespaceAnnotationKey) == bindingNamespace {
+		if len(bindingMeta.Namespace) > 0 { // filter Works that derived by 'ResourceBinding'
+			if util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ResourceBindingNameAnnotationKey) == bindingMeta.Name &&
+				util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ResourceBindingNamespaceAnnotationKey) == bindingMeta.Namespace {
 				retWorkList.Items = append(retWorkList.Items, workList.Items[i])
 			}
 		} else { // filter Works that derived by 'ClusterResourceBinding'
-			if util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ClusterResourceBindingAnnotationKey) == bindingName {
+			if util.GetAnnotationValue(workList.Items[i].GetAnnotations(), workv1alpha2.ClusterResourceBindingAnnotationKey) == bindingMeta.Name {
 				retWorkList.Items = append(retWorkList.Items, workList.Items[i])
 			}
 		}

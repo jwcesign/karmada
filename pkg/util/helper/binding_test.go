@@ -531,7 +531,11 @@ func TestFindOrphanWorks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindOrphanWorks(tt.args.c, tt.args.bindingNamespace, tt.args.bindingName, tt.args.expectClusters)
+			bindingMeta := &metav1.ObjectMeta{
+				Name:      tt.args.bindingName,
+				Namespace: tt.args.bindingNamespace,
+			}
+			got, err := FindOrphanWorks(tt.args.c, bindingMeta, tt.args.expectClusters)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FindOrphanWorks() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -849,7 +853,8 @@ func TestDeleteWorkByRBNamespaceAndName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := DeleteWorkByRBNamespaceAndName(tt.args.c, tt.args.namespace, tt.args.name); (err != nil) != tt.wantErr {
+			bindingMeta := &metav1.ObjectMeta{Name: tt.args.name, Namespace: tt.args.namespace}
+			if err := DeleteWorkByResourceBinding(tt.args.c, bindingMeta); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteWorkByRBNamespaceAndName() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			list := &workv1alpha1.WorkList{}
@@ -899,7 +904,8 @@ func TestDeleteWorkByCRBName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := DeleteWorkByCRBName(tt.args.c, tt.args.name); (err != nil) != tt.wantErr {
+			binddingMeta := &metav1.ObjectMeta{Name: tt.args.name}
+			if err := DeleteWorkByCRBName(tt.args.c, binddingMeta); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteWorkByRBNamespaceAndName() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			list := &workv1alpha1.WorkList{}
