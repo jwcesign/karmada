@@ -268,8 +268,8 @@ func DeleteWorkByResourceBinding(c client.Client, bindingMeta *metav1.ObjectMeta
 	return DeleteWorks(c, bindingMeta)
 }
 
-// DeleteWorkByCRBName will delete all Work objects by ClusterResourceBinding name.
-func DeleteWorkByCRBName(c client.Client, bindingMeta *metav1.ObjectMeta) error {
+// DeleteWorkByClusterResourceBinding will delete all Work objects by ClusterResourceBinding name.
+func DeleteWorkByClusterResourceBinding(c client.Client, bindingMeta *metav1.ObjectMeta) error {
 	return DeleteWorks(c, bindingMeta)
 }
 

@@ -880,7 +880,7 @@ func (d *ResourceDetector) ReconcilePropagationPolicy(key util.QueueKey) error {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.Infof("PropagationPolicy(%s) has been removed.", ckey.NamespaceKey())
-			return d.HandlePropagationPolicyDeletion(ckey.Namespace, ckey.Name)
+			return d.HandlePropagationPolicyDeletion(ckey.UID, ckey.Namespace, ckey.Name)
 		}
 		klog.Errorf("Failed to get PropagationPolicy(%s): %v", ckey.NamespaceKey(), err)
 		return err
@@ -965,10 +965,9 @@ func (d *ResourceDetector) ReconcileClusterPropagationPolicy(key util.QueueKey) 
 // the resource template a change to match another policy).
 //
 // Note: The relevant ResourceBinding will continue to exist until the resource template is gone.
-func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, policyName string) error {
+func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyUID string, policyNS, policyName string) error {
 	labelSet := labels.Set{
-		policyv1alpha1.PropagationPolicyNamespaceLabel: policyNS,
-		policyv1alpha1.PropagationPolicyNameLabel:      policyName,
+		policyv1alpha1.PropagationPolicyReferenceKey: policyUID,
 	}
 
 	rbs, err := helper.GetResourceBindings(d.Client, labelSet)
@@ -979,7 +978,8 @@ func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, poli
 
 	for index, binding := range rbs.Items {
 		// Cleanup the labels from the reference binding so that the karmada scheduler won't reschedule the binding.
-		if err := d.CleanupResourceBindingLabels(&rbs.Items[index], policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
+		if err := d.CleanupResourceBindingLabels(&rbs.Items[index],
+			policyv1alpha1.PropagationPolicyReferenceKey, policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
 			klog.Errorf("Failed to cleanup label from resource binding(%s/%s) when propagation policy(%s/%s) removing, error: %v",
 				binding.Namespace, binding.Name, policyNS, policyName, err)
 			return err
@@ -987,7 +987,8 @@ func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, poli
 
 		// Cleanup the labels from the object referencing by binding.
 		// In addition, this will give the object a chance to match another policy.
-		if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
+		if err := d.CleanupLabels(binding.Spec.Resource,
+			policyv1alpha1.PropagationPolicyReferenceKey, policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
 			klog.Errorf("Failed to cleanup label from resource(%s-%s/%s) when propagation policy(%s/%s) removing, error: %v",
 				binding.Spec.Resource.Kind, binding.Spec.Resource.Namespace, binding.Spec.Resource.Name, policyNS, policyName, err)
 			return err

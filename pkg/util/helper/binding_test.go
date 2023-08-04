@@ -905,7 +905,7 @@ func TestDeleteWorkByCRBName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			binddingMeta := &metav1.ObjectMeta{Name: tt.args.name}
-			if err := DeleteWorkByCRBName(tt.args.c, binddingMeta); (err != nil) != tt.wantErr {
+			if err := DeleteWorkByClusterResourceBinding(tt.args.c, binddingMeta); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteWorkByRBNamespaceAndName() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			list := &workv1alpha1.WorkList{}
