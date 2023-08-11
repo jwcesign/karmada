@@ -13,10 +13,12 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
+	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
 	"github.com/karmada-io/karmada/pkg/util"
 	"github.com/karmada-io/karmada/pkg/util/helper"
 	"github.com/karmada-io/karmada/pkg/util/names"
@@ -38,21 +40,22 @@ func (c *EndpointSliceController) Reconcile(ctx context.Context, req controllerr
 	work := &workv1alpha1.Work{}
 	if err := c.Client.Get(ctx, req.NamespacedName, work); err != nil {
 		if apierrors.IsNotFound(err) {
-			// Cleanup derived EndpointSlices after work has been removed.
-			err = helper.DeleteEndpointSlice(c.Client, labels.Set{
-				workv1alpha1.WorkNamespaceLabel: req.Namespace,
-				workv1alpha1.WorkNameLabel:      req.Name,
-			})
-			if err == nil {
-				return controllerruntime.Result{}, nil
-			}
+			return controllerruntime.Result{}, nil
 		}
 
 		return controllerruntime.Result{Requeue: true}, err
 	}
 
 	if !work.DeletionTimestamp.IsZero() {
-		return controllerruntime.Result{}, nil
+		err := helper.DeleteEndpointSlice(c.Client, labels.Set{
+			workv1alpha2.WorkUIDLabel: string(work.UID),
+		})
+		if err != nil {
+			return controllerruntime.Result{}, err
+		}
+		if err := c.removeFinalizer(work); err != nil {
+			return controllerruntime.Result{}, err
+		}
 	}
 
 	return c.collectEndpointSliceFromWork(work)
@@ -100,18 +103,45 @@ func (c *EndpointSliceController) collectEndpointSliceFromWork(work *workv1alpha
 
 		desiredEndpointSlice := deriveEndpointSlice(endpointSlice, clusterName)
 		desiredEndpointSlice.Labels = map[string]string{
-			workv1alpha1.WorkNamespaceLabel: work.Namespace,
-			workv1alpha1.WorkNameLabel:      work.Name,
-			discoveryv1.LabelServiceName:    names.GenerateDerivedServiceName(work.Labels[util.ServiceNameLabel]),
-			util.ManagedByKarmadaLabel:      util.ManagedByKarmadaLabelValue,
+			workv1alpha2.WorkUIDLabel:    string(work.UID),
+			discoveryv1.LabelServiceName: names.GenerateDerivedServiceName(work.Labels[util.ServiceNameLabel]),
+			util.ManagedByKarmadaLabel:   util.ManagedByKarmadaLabelValue,
 		}
 
 		if err = helper.CreateOrUpdateEndpointSlice(c.Client, desiredEndpointSlice); err != nil {
 			return controllerruntime.Result{Requeue: true}, err
 		}
+
+		if err := c.addFinalizer(work); err != nil {
+			return controllerruntime.Result{}, err
+		}
 	}
 
 	return controllerruntime.Result{}, nil
+}
+
+// addFinalizer add finalizer to the given Work
+func (c *EndpointSliceController) addFinalizer(work *workv1alpha1.Work) error {
+	if !controllerutil.AddFinalizer(work, util.MCSControllerFinalizer) {
+		return nil
+	}
+
+	if err := c.Client.Update(context.TODO(), work); err != nil {
+		return err
+	}
+	return nil
+}
+
+// removeFinalizer remove finalizer from the given Work
+func (c *EndpointSliceController) removeFinalizer(work *workv1alpha1.Work) error {
+	if !controllerutil.RemoveFinalizer(work, util.MCSControllerFinalizer) {
+		return nil
+	}
+
+	if err := c.Client.Update(context.TODO(), work); err != nil {
+		return err
+	}
+	return nil
 }
 
 func deriveEndpointSlice(original *discoveryv1.EndpointSlice, migratedFrom string) *discoveryv1.EndpointSlice {

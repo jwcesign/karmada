@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	clusterv1alpha1 "github.com/karmada-io/karmada/pkg/apis/cluster/v1alpha1"
-	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
+	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
 	"github.com/karmada-io/karmada/pkg/events"
 	"github.com/karmada-io/karmada/pkg/util"
 	"github.com/karmada-io/karmada/pkg/util/helper"
@@ -219,8 +219,8 @@ func (c *Controller) buildWorks(cluster *clusterv1alpha1.Cluster, obj *unstructu
 		},
 	}
 
-	util.MergeLabel(obj, workv1alpha1.WorkNamespaceLabel, workNamespace)
-	util.MergeLabel(obj, workv1alpha1.WorkNameLabel, clusterRoleBindingWorkName)
+	util.MergeAnnotation(obj, workv1alpha2.WorkNamespaceAnnotationKey, workNamespace)
+	util.MergeAnnotation(obj, workv1alpha2.WorkNameAnnotationKey, clusterRoleBindingWorkName)
 	util.MergeLabel(obj, util.ManagedByKarmadaLabel, util.ManagedByKarmadaLabelValue)
 
 	if err := helper.CreateOrUpdateWork(c.Client, objectMeta, obj); err != nil {

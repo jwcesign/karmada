@@ -388,25 +388,20 @@ func (c *FederatedHPAController) reconcileAutoscaler(ctx context.Context, hpa *a
 
 func (c *FederatedHPAController) getBindingByLabel(resourceLabel map[string]string, resourceRef autoscalingv2.CrossVersionObjectReference) (*workv1alpha2.ResourceBinding, error) {
 	if len(resourceLabel) == 0 {
-		return nil, fmt.Errorf("Target resource has no label. ")
+		return nil, fmt.Errorf("target resource has no label. ")
 	}
 
-	var policyName, policyNameSpace string
 	var selector labels.Selector
-	if _, ok := resourceLabel[policyv1alpha1.PropagationPolicyNameLabel]; ok {
-		policyName = resourceLabel[policyv1alpha1.PropagationPolicyNameLabel]
-		policyNameSpace = resourceLabel[policyv1alpha1.PropagationPolicyNamespaceLabel]
+	if policyUID, ok := resourceLabel[policyv1alpha1.PropagationPolicyUIDLabel]; ok {
 		selector = labels.SelectorFromSet(labels.Set{
-			policyv1alpha1.PropagationPolicyNameLabel:      policyName,
-			policyv1alpha1.PropagationPolicyNamespaceLabel: policyNameSpace,
+			policyv1alpha1.PropagationPolicyUIDLabel: policyUID,
 		})
-	} else if _, ok = resourceLabel[policyv1alpha1.ClusterPropagationPolicyLabel]; ok {
-		policyName = resourceLabel[policyv1alpha1.ClusterPropagationPolicyLabel]
+	} else if policyUID, ok = resourceLabel[policyv1alpha1.ClusterPropagationPolicyUIDLabel]; ok {
 		selector = labels.SelectorFromSet(labels.Set{
-			policyv1alpha1.ClusterPropagationPolicyLabel: policyName,
+			policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
 		})
 	} else {
-		return nil, fmt.Errorf("No label of policy found. ")
+		return nil, fmt.Errorf("no label of policy found. ")
 	}
 
 	binding := &workv1alpha2.ResourceBinding{}
@@ -416,7 +411,7 @@ func (c *FederatedHPAController) getBindingByLabel(resourceLabel map[string]stri
 		return nil, err
 	}
 	if len(bindingList.Items) == 0 {
-		return nil, fmt.Errorf("Length of binding list is zero. ")
+		return nil, fmt.Errorf("length of binding list is zero. ")
 	}
 
 	found := false
@@ -428,7 +423,7 @@ func (c *FederatedHPAController) getBindingByLabel(resourceLabel map[string]stri
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("No binding matches the target resource. ")
+		return nil, fmt.Errorf("no binding matches the target resource. ")
 	}
 
 	return binding, nil
@@ -436,7 +431,7 @@ func (c *FederatedHPAController) getBindingByLabel(resourceLabel map[string]stri
 
 func (c *FederatedHPAController) getTargetCluster(binding *workv1alpha2.ResourceBinding) ([]string, error) {
 	if len(binding.Spec.Clusters) == 0 {
-		return nil, fmt.Errorf("Binding has no schedulable clusters. ")
+		return nil, fmt.Errorf("binding has no schedulable clusters. ")
 	}
 
 	var allClusters []string

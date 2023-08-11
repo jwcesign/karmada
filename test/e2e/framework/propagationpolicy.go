@@ -22,6 +22,13 @@ func CreatePropagationPolicy(client karmada.Interface, policy *policyv1alpha1.Pr
 	})
 }
 
+// GetPropagationPolicyUID get PropagationPolicy UID with karmada client.
+func GetPropagationPolicyUID(client karmada.Interface, namespace, name string) string {
+	policy, err := client.PolicyV1alpha1().PropagationPolicies(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+	return string(policy.UID)
+}
+
 // RemovePropagationPolicy delete PropagationPolicy with karmada client.
 func RemovePropagationPolicy(client karmada.Interface, namespace, name string) {
 	ginkgo.By(fmt.Sprintf("Removing PropagationPolicy(%s/%s)", namespace, name), func() {

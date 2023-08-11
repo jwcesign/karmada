@@ -58,6 +58,12 @@ const (
 	// is deleted before Work itself is deleted.
 	ExecutionControllerFinalizer = "karmada.io/execution-controller"
 
+	// MCSControllerFinalizer is added to Work to ensure MCS is deleted before Work itself is deleted.
+	MCSControllerFinalizer = "karmada.io/mcs-controller"
+
+	// DependenciesDistributorFinalizer is added to ResoueceBing to ensure DependenciesDistributor is deleted before ResourceBinding itself is deleted.
+	DependenciesDistributorFinalizer = "karmada.io/dependencies-distributor"
+
 	// BindingControllerFinalizer is added to ResourceBinding to ensure related Works are deleted
 	// before ResourceBinding itself is deleted.
 	BindingControllerFinalizer = "karmada.io/binding-controller"

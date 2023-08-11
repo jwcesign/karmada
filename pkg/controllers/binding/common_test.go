@@ -11,7 +11,6 @@ import (
 
 	policyv1alpha1 "github.com/karmada-io/karmada/pkg/apis/policy/v1alpha1"
 	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
-	"github.com/karmada-io/karmada/pkg/util/names"
 )
 
 func Test_mergeTargetClusters(t *testing.T) {
@@ -120,8 +119,7 @@ func Test_mergeLabel(t *testing.T) {
 			},
 			scope: v1.NamespaceScoped,
 			want: map[string]string{
-				workv1alpha2.ResourceBindingUIDLabel:     rbUID,
-				workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey(namespace, bindingName),
+				workv1alpha2.ResourceBindingUIDLabel: rbUID,
 			},
 		},
 		{
@@ -143,8 +141,7 @@ func Test_mergeLabel(t *testing.T) {
 			},
 			scope: v1.ClusterScoped,
 			want: map[string]string{
-				workv1alpha2.ClusterResourceBindingUIDLabel:     rbUID,
-				workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", bindingName),
+				workv1alpha2.ClusterResourceBindingUIDLabel: rbUID,
 			},
 		},
 	}

@@ -154,7 +154,7 @@ func (c *Controller) tryDeleteWorkload(clusterName string, work *workv1alpha1.Wo
 		}
 
 		// Avoid deleting resources that not managed by karmada.
-		if util.GetLabelValue(clusterObj.GetLabels(), workv1alpha1.WorkNameLabel) != util.GetLabelValue(workload.GetLabels(), workv1alpha1.WorkNameLabel) {
+		if util.GetLabelValue(clusterObj.GetLabels(), workv1alpha2.WorkUIDLabel) != string(work.GetUID()) {
 			klog.Infof("Abort deleting the resource(kind=%s, %s/%s) exists in cluster %v but not managed by karmada", clusterObj.GetKind(), clusterObj.GetNamespace(), clusterObj.GetName(), clusterName)
 			return nil
 		}
@@ -196,6 +196,7 @@ func (c *Controller) syncToClusters(clusterName string, work *workv1alpha1.Work)
 			errs = append(errs, err)
 			continue
 		}
+		util.MergeLabel(workload, workv1alpha2.WorkUIDLabel, string(work.UID))
 
 		if err = c.tryCreateOrUpdateWorkload(clusterName, workload); err != nil {
 			klog.Errorf("Failed to create or update resource(%v/%v) in the given member cluster %s, err is %v", workload.GetNamespace(), workload.GetName(), clusterName, err)

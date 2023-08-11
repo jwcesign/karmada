@@ -9,7 +9,6 @@ import (
 
 	configv1alpha1 "github.com/karmada-io/karmada/pkg/apis/config/v1alpha1"
 	policyv1alpha1 "github.com/karmada-io/karmada/pkg/apis/policy/v1alpha1"
-	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
 	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
 	"github.com/karmada-io/karmada/pkg/resourceinterpreter"
 	"github.com/karmada-io/karmada/pkg/util"
@@ -18,53 +17,39 @@ import (
 	"github.com/karmada-io/karmada/pkg/util/overridemanager"
 )
 
+type ensureWorkParameters struct {
+	targetClusters              []workv1alpha2.TargetCluster
+	requiredByBindingSnapshot   []workv1alpha2.BindingSnapshot
+	placement                   *policyv1alpha1.Placement
+	replicas                    int32
+	conflictResolutionInBinding policyv1alpha1.ConflictResolution
+}
+
 // ensureWork ensure Work to be created or updated.
 func ensureWork(
 	c client.Client, resourceInterpreter resourceinterpreter.ResourceInterpreter, workload *unstructured.Unstructured,
 	overrideManager overridemanager.OverrideManager, binding metav1.Object, scope apiextensionsv1.ResourceScope,
 ) error {
-	var targetClusters []workv1alpha2.TargetCluster
-	var placement *policyv1alpha1.Placement
-	var requiredByBindingSnapshot []workv1alpha2.BindingSnapshot
-	var replicas int32
-	var conflictResolutionInBinding policyv1alpha1.ConflictResolution
-	switch scope {
-	case apiextensionsv1.NamespaceScoped:
-		bindingObj := binding.(*workv1alpha2.ResourceBinding)
-		targetClusters = bindingObj.Spec.Clusters
-		requiredByBindingSnapshot = bindingObj.Spec.RequiredBy
-		placement = bindingObj.Spec.Placement
-		replicas = bindingObj.Spec.Replicas
-		conflictResolutionInBinding = bindingObj.Spec.ConflictResolution
-	case apiextensionsv1.ClusterScoped:
-		bindingObj := binding.(*workv1alpha2.ClusterResourceBinding)
-		targetClusters = bindingObj.Spec.Clusters
-		requiredByBindingSnapshot = bindingObj.Spec.RequiredBy
-		placement = bindingObj.Spec.Placement
-		replicas = bindingObj.Spec.Replicas
-		conflictResolutionInBinding = bindingObj.Spec.ConflictResolution
-	}
-
-	targetClusters = mergeTargetClusters(targetClusters, requiredByBindingSnapshot)
+	ensureWorkPara := extractBindingCoreParameters(binding, scope)
+	ensureWorkPara.targetClusters = mergeTargetClusters(ensureWorkPara.targetClusters, ensureWorkPara.requiredByBindingSnapshot)
 
 	var jobCompletions []workv1alpha2.TargetCluster
 	var err error
 	if workload.GetKind() == util.JobKind {
-		jobCompletions, err = divideReplicasByJobCompletions(workload, targetClusters)
+		jobCompletions, err = divideReplicasByJobCompletions(workload, ensureWorkPara.targetClusters)
 		if err != nil {
 			return err
 		}
 	}
 
-	for i := range targetClusters {
-		targetCluster := targetClusters[i]
+	for i := range ensureWorkPara.targetClusters {
 		clonedWorkload := workload.DeepCopy()
-
+		targetCluster := ensureWorkPara.targetClusters[i]
 		workNamespace := names.GenerateExecutionSpaceName(targetCluster.Name)
 
 		// If and only if the resource template has replicas, and the replica scheduling policy is divided,
 		// we need to revise replicas.
-		if needReviseReplicas(replicas, placement) {
+		if needReviseReplicas(ensureWorkPara.replicas, ensureWorkPara.placement) {
 			if resourceInterpreter.HookEnabled(clonedWorkload.GroupVersionKind(), configv1alpha1.InterpreterOperationReviseReplica) {
 				clonedWorkload, err = resourceInterpreter.ReviseReplica(clonedWorkload, int64(targetCluster.Replicas))
 				if err != nil {
@@ -96,7 +81,7 @@ func ensureWork(
 		workLabel := mergeLabel(clonedWorkload, workNamespace, binding, scope)
 
 		annotations := mergeAnnotations(clonedWorkload, workNamespace, binding, scope)
-		annotations = mergeConflictResolution(clonedWorkload, conflictResolutionInBinding, annotations)
+		annotations = mergeConflictResolution(clonedWorkload, ensureWorkPara.conflictResolutionInBinding, annotations)
 		annotations, err = RecordAppliedOverrides(cops, ops, annotations)
 		if err != nil {
 			klog.Errorf("Failed to record appliedOverrides, Error: %v", err)
@@ -116,6 +101,28 @@ func ensureWork(
 		}
 	}
 	return nil
+}
+
+func extractBindingCoreParameters(binding metav1.Object, scope apiextensionsv1.ResourceScope) *ensureWorkParameters {
+	ret := &ensureWorkParameters{}
+	switch scope {
+	case apiextensionsv1.NamespaceScoped:
+		bindingObj := binding.(*workv1alpha2.ResourceBinding)
+		ret.targetClusters = bindingObj.Spec.Clusters
+		ret.requiredByBindingSnapshot = bindingObj.Spec.RequiredBy
+		ret.placement = bindingObj.Spec.Placement
+		ret.replicas = bindingObj.Spec.Replicas
+		ret.conflictResolutionInBinding = bindingObj.Spec.ConflictResolution
+	case apiextensionsv1.ClusterScoped:
+		bindingObj := binding.(*workv1alpha2.ClusterResourceBinding)
+		ret.targetClusters = bindingObj.Spec.Clusters
+		ret.requiredByBindingSnapshot = bindingObj.Spec.RequiredBy
+		ret.placement = bindingObj.Spec.Placement
+		ret.replicas = bindingObj.Spec.Replicas
+		ret.conflictResolutionInBinding = bindingObj.Spec.ConflictResolution
+	}
+
+	return ret
 }
 
 func mergeTargetClusters(targetClusters []workv1alpha2.TargetCluster, requiredByBindingSnapshot []workv1alpha2.BindingSnapshot) []workv1alpha2.TargetCluster {
@@ -138,19 +145,16 @@ func mergeTargetClusters(targetClusters []workv1alpha2.TargetCluster, requiredBy
 }
 
 func mergeLabel(workload *unstructured.Unstructured, workNamespace string, binding metav1.Object, scope apiextensionsv1.ResourceScope) map[string]string {
-	var workLabel = make(map[string]string)
-	util.MergeLabel(workload, workv1alpha1.WorkNamespaceLabel, workNamespace)
-	util.MergeLabel(workload, workv1alpha1.WorkNameLabel, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
+	workLabel := make(map[string]string)
 	util.MergeLabel(workload, util.ManagedByKarmadaLabel, util.ManagedByKarmadaLabelValue)
+	util.MergeAnnotation(workload, workv1alpha2.WorkNamespaceAnnotationKey, workNamespace)
+	util.MergeAnnotation(workload, workv1alpha2.WorkNameAnnotationKey, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
+
 	if scope == apiextensionsv1.NamespaceScoped {
-		util.MergeLabel(workload, workv1alpha2.ResourceBindingReferenceKey, names.GenerateBindingReferenceKey(binding.GetNamespace(), binding.GetName()))
 		util.MergeLabel(workload, workv1alpha2.ResourceBindingUIDLabel, string(binding.GetUID()))
-		workLabel[workv1alpha2.ResourceBindingReferenceKey] = names.GenerateBindingReferenceKey(binding.GetNamespace(), binding.GetName())
 		workLabel[workv1alpha2.ResourceBindingUIDLabel] = string(binding.GetUID())
 	} else {
-		util.MergeLabel(workload, workv1alpha2.ClusterResourceBindingReferenceKey, names.GenerateBindingReferenceKey("", binding.GetName()))
 		util.MergeLabel(workload, workv1alpha2.ClusterResourceBindingUIDLabel, string(binding.GetUID()))
-		workLabel[workv1alpha2.ClusterResourceBindingReferenceKey] = names.GenerateBindingReferenceKey("", binding.GetName())
 		workLabel[workv1alpha2.ClusterResourceBindingUIDLabel] = string(binding.GetUID())
 	}
 	return workLabel
@@ -158,8 +162,8 @@ func mergeLabel(workload *unstructured.Unstructured, workNamespace string, bindi
 
 func mergeAnnotations(workload *unstructured.Unstructured, workNamespace string, binding metav1.Object, scope apiextensionsv1.ResourceScope) map[string]string {
 	annotations := make(map[string]string)
-	util.MergeAnnotation(workload, workv1alpha2.WorkNameAnnotation, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
-	util.MergeAnnotation(workload, workv1alpha2.WorkNamespaceAnnotation, workNamespace)
+	util.MergeAnnotation(workload, workv1alpha2.WorkNameAnnotationKey, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
+	util.MergeAnnotation(workload, workv1alpha2.WorkNamespaceAnnotationKey, workNamespace)
 
 	if scope == apiextensionsv1.NamespaceScoped {
 		util.MergeAnnotation(workload, workv1alpha2.ResourceBindingNamespaceAnnotationKey, binding.GetNamespace())

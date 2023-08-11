@@ -7,24 +7,14 @@ const (
 	// ClusterResourceBindingUIDLabel is the uid of ClusterResourceBinding object.
 	ClusterResourceBindingUIDLabel = "clusterresourcebinding.karmada.io/uid"
 
-	// WorkNamespaceAnnotation is added to objects to specify associated Work's namespace.
-	WorkNamespaceAnnotation = "work.karmada.io/namespace"
+	// WorkNamespaceAnnotationKey is added to objects to specify associated Work's namespace.
+	WorkNamespaceAnnotationKey = "work.karmada.io/namespace"
 
-	// WorkNameAnnotation is added to objects to specify associated Work's name.
-	WorkNameAnnotation = "work.karmada.io/name"
+	// WorkNameAnnotationKey is added to objects to specify associated Work's name.
+	WorkNameAnnotationKey = "work.karmada.io/name"
 
 	// WorkUIDLabel is the uid of Work object.
 	WorkUIDLabel = "work.karmada.io/uid"
-
-	// ResourceBindingReferenceKey is the key of ResourceBinding object.
-	// It is usually a unique hash value of ResourceBinding object's namespace and name, intended to be added to the Work object.
-	// It will be used to retrieve all Works objects that derived from a specific ResourceBinding object.
-	ResourceBindingReferenceKey = "resourcebinding.karmada.io/key"
-
-	// ClusterResourceBindingReferenceKey is the key of ClusterResourceBinding object.
-	// It is usually a unique hash value of ClusterResourceBinding object's namespace and name, intended to be added to the Work object.
-	// It will be used to retrieve all Works objects that derived by a specific ClusterResourceBinding object.
-	ClusterResourceBindingReferenceKey = "clusterresourcebinding.karmada.io/key"
 
 	// ResourceBindingNamespaceAnnotationKey is added to object to describe the associated ResourceBinding's namespace.
 	// It is added to:
@@ -43,12 +33,6 @@ const (
 	// - Work object: describes the name of ClusterResourceBinding which the Work derived from.
 	// - Manifest in Work object: describes the name of ClusterResourceBinding which the manifest derived from.
 	ClusterResourceBindingAnnotationKey = "clusterresourcebinding.karmada.io/name"
-
-	// WorkNamespaceLabel is added to objects to specify associated Work's namespace.
-	WorkNamespaceLabel = "work.karmada.io/namespace"
-
-	// WorkNameLabel is added to objects to specify associated Work's name.
-	WorkNameLabel = "work.karmada.io/name"
 )
 
 // Define resource conflict resolution

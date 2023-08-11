@@ -233,7 +233,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 							return true
 						}
 
-						_, exist := deployment.Labels[policyv1alpha1.ClusterPropagationPolicyLabel]
+						_, exist := deployment.Labels[policyv1alpha1.ClusterPropagationPolicyUIDLabel]
 						return !exist
 					})
 			})
@@ -318,7 +318,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 							return true
 						}
 
-						_, exist := clusterRole.Labels[policyv1alpha1.ClusterPropagationPolicyLabel]
+						_, exist := clusterRole.Labels[policyv1alpha1.ClusterPropagationPolicyUIDLabel]
 						return !exist
 					})
 			})
@@ -329,6 +329,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 
 		ginkgo.When("namespace scope resource", func() {
 			var policy *policyv1alpha1.ClusterPropagationPolicy
+			var policyUID string
 			var deployment *appsv1.Deployment
 			var targetMember, updatedMember string
 
@@ -359,10 +360,11 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 					framework.RemoveDeployment(kubeClient, deployment.Namespace, deployment.Name)
 				})
 
+				policyUID = framework.GetClusterPropagationPolicyUID(karmadaClient, policy.Name)
 				gomega.Eventually(func() bool {
 					bindings, err := karmadaClient.WorkV1alpha2().ResourceBindings(testNamespace).List(context.TODO(), metav1.ListOptions{
 						LabelSelector: labels.SelectorFromSet(labels.Set{
-							policyv1alpha1.ClusterPropagationPolicyLabel: policy.Name,
+							policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
 						}).String(),
 					})
 					if err != nil {
@@ -384,7 +386,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 				gomega.Eventually(func() bool {
 					bindings, err := karmadaClient.WorkV1alpha2().ResourceBindings(testNamespace).List(context.TODO(), metav1.ListOptions{
 						LabelSelector: labels.SelectorFromSet(labels.Set{
-							policyv1alpha1.ClusterPropagationPolicyLabel: policy.Name,
+							policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
 						}).String(),
 					})
 					if err != nil {
@@ -553,8 +555,8 @@ var _ = ginkgo.Describe("[ExplicitPriority] propagation testing", func() {
 			ginkgo.By("check whether the deployment uses the highest explicit priority ClusterPropagationPolicy", func() {
 				framework.WaitDeploymentPresentOnClustersFitWith(framework.ClusterNames(), deployment.Namespace, deployment.Name,
 					func(deployment *appsv1.Deployment) bool {
-						klog.Infof("Matched ClusterPropagationPolicy:%s", deployment.GetLabels()[policyv1alpha1.ClusterPropagationPolicyLabel])
-						return deployment.GetLabels()[policyv1alpha1.ClusterPropagationPolicyLabel] == higherPriorityLabelSelector
+						klog.Infof("Matched ClusterPropagationPolicy:%s", deployment.GetAnnotations()[policyv1alpha1.ClusterPropagationPolicyAnnotation])
+						return deployment.GetAnnotations()[policyv1alpha1.ClusterPropagationPolicyAnnotation] == higherPriorityLabelSelector
 					})
 			})
 		})
@@ -623,8 +625,8 @@ var _ = ginkgo.Describe("[ExplicitPriority] propagation testing", func() {
 			ginkgo.By("check whether the deployment uses the ClusterPropagationPolicy with name matched", func() {
 				framework.WaitDeploymentPresentOnClustersFitWith(framework.ClusterNames(), deployment.Namespace, deployment.Name,
 					func(deployment *appsv1.Deployment) bool {
-						klog.Infof("Matched ClusterPropagationPolicy:%s", deployment.GetLabels()[policyv1alpha1.ClusterPropagationPolicyLabel])
-						return deployment.GetLabels()[policyv1alpha1.ClusterPropagationPolicyLabel] == explicitPriorityMatchName
+						klog.Infof("Matched ClusterPropagationPolicy:%s", deployment.GetAnnotations()[policyv1alpha1.ClusterPropagationPolicyAnnotation])
+						return deployment.GetAnnotations()[policyv1alpha1.ClusterPropagationPolicyAnnotation] == explicitPriorityMatchName
 					})
 			})
 		})
