@@ -91,8 +91,9 @@ func (s *Scheduler) resourceBindingEventFilter(obj interface{}) bool {
 		}
 	}
 
-	return util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.PropagationPolicyNameLabel) != "" ||
-		util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel) != ""
+	matchKeyExist := util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.PropagationPolicyUIDLabel) != "" ||
+		util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.ClusterPropagationPolicyUIDLabel) != ""
+	return matchKeyExist
 }
 
 func (s *Scheduler) onResourceBindingAdd(obj interface{}) {

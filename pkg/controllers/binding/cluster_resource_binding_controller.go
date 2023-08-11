@@ -66,7 +66,7 @@ func (c *ClusterResourceBindingController) Reconcile(ctx context.Context, req co
 
 	if !clusterResourceBinding.DeletionTimestamp.IsZero() {
 		klog.V(4).Infof("Begin to delete works owned by binding(%s).", req.NamespacedName.String())
-		if err := helper.DeleteWorkByCRBName(c.Client, req.Name); err != nil {
+		if err := helper.DeleteWorkByClusterResourceBinding(c.Client, &clusterResourceBinding.ObjectMeta); err != nil {
 			klog.Errorf("Failed to delete works related to %s: %v", clusterResourceBinding.GetName(), err)
 			return controllerruntime.Result{Requeue: true}, err
 		}
@@ -126,7 +126,7 @@ func (c *ClusterResourceBindingController) syncBinding(binding *workv1alpha2.Clu
 }
 
 func (c *ClusterResourceBindingController) removeOrphanWorks(binding *workv1alpha2.ClusterResourceBinding) error {
-	works, err := helper.FindOrphanWorks(c.Client, "", binding.Name, helper.ObtainBindingSpecExistingClusters(binding.Spec))
+	works, err := helper.FindOrphanWorks(c.Client, &binding.ObjectMeta, helper.ObtainBindingSpecExistingClusters(binding.Spec))
 	if err != nil {
 		klog.Errorf("Failed to find orphan works by ClusterResourceBinding(%s). Error: %v.", binding.GetName(), err)
 		c.EventRecorder.Event(binding, corev1.EventTypeWarning, events.EventReasonCleanupWorkFailed, err.Error())

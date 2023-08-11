@@ -24,6 +24,7 @@ import (
 
 	clusterv1alpha1 "github.com/karmada-io/karmada/pkg/apis/cluster/v1alpha1"
 	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
+	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
 	"github.com/karmada-io/karmada/pkg/resourceinterpreter"
 	"github.com/karmada-io/karmada/pkg/sharedcli/ratelimiterflag"
 	"github.com/karmada-io/karmada/pkg/util"
@@ -356,8 +357,8 @@ func TestGenerateKey(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
-							workv1alpha1.WorkNamespaceLabel: "karmada-es-cluster",
+						"annotations": map[string]interface{}{
+							workv1alpha2.WorkNamespaceAnnotationKey: "karmada-es-cluster",
 						},
 					},
 				},
@@ -374,8 +375,8 @@ func TestGenerateKey(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
-							workv1alpha1.WorkNamespaceLabel: "karmada-cluster",
+						"annotations": map[string]interface{}{
+							workv1alpha2.WorkNamespaceAnnotationKey: "karmada-cluster",
 						},
 					},
 				},
@@ -392,7 +393,7 @@ func TestGenerateKey(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
+						"annotations": map[string]interface{}{
 							"test": "karmada-es-cluster",
 						},
 					},
@@ -437,8 +438,8 @@ func TestGetClusterNameFromLabel(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
-							workv1alpha1.WorkNamespaceLabel: "karmada-es-cluster",
+						"annotations": map[string]interface{}{
+							workv1alpha2.WorkNamespaceAnnotationKey: "karmada-es-cluster",
 						},
 					},
 				},
@@ -455,7 +456,7 @@ func TestGetClusterNameFromLabel(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
+						"annotations": map[string]interface{}{
 							"foo": "karmada-es-cluster",
 						},
 					},
@@ -473,8 +474,8 @@ func TestGetClusterNameFromLabel(t *testing.T) {
 					"metadata": map[string]interface{}{
 						"name":      "test",
 						"namespace": "default",
-						"labels": map[string]interface{}{
-							workv1alpha1.WorkNamespaceLabel: "karmada-cluster",
+						"annotations": map[string]interface{}{
+							workv1alpha2.WorkNamespaceAnnotationKey: "karmada-cluster",
 						},
 					},
 				},
@@ -486,7 +487,7 @@ func TestGetClusterNameFromLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := getClusterNameFromLabel(tt.resource)
+			actual, err := getClusterNameFromAnnotation(tt.resource)
 			assert.Equal(t, tt.expect, actual)
 			if tt.existErr {
 				assert.NotEmpty(t, err)
@@ -505,9 +506,9 @@ func newPodObj(namespace string) *unstructured.Unstructured {
 			"metadata": map[string]interface{}{
 				"name":      "pod",
 				"namespace": "default",
-				"labels": map[string]interface{}{
-					workv1alpha1.WorkNamespaceLabel: namespace,
-					workv1alpha1.WorkNameLabel:      "work-name",
+				"annotations": map[string]interface{}{
+					workv1alpha2.WorkNamespaceAnnotationKey: namespace,
+					workv1alpha2.WorkNameAnnotationKey:      "work-name",
 				},
 			},
 		},
@@ -522,9 +523,9 @@ func newPod(workNs, workName string, wrongLabel ...bool) *corev1.Pod {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod",
 				Namespace: "default",
-				Labels: map[string]string{
-					"test":                     workNs,
-					workv1alpha1.WorkNameLabel: workName,
+				Annotations: map[string]string{
+					"test":                             workNs,
+					workv1alpha2.WorkNameAnnotationKey: workName,
 				},
 			},
 		}
@@ -533,9 +534,9 @@ func newPod(workNs, workName string, wrongLabel ...bool) *corev1.Pod {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pod",
 				Namespace: "default",
-				Labels: map[string]string{
-					workv1alpha1.WorkNamespaceLabel: workNs,
-					workv1alpha1.WorkNameLabel:      workName,
+				Annotations: map[string]string{
+					workv1alpha2.WorkNamespaceAnnotationKey: workNs,
+					workv1alpha2.WorkNameAnnotationKey:      workName,
 				},
 			},
 		}
@@ -596,7 +597,7 @@ func TestWorkStatusController_syncWorkStatus(t *testing.T) {
 			expectedError:             false,
 		},
 		{
-			name:                      "workNamespace is zero, set wrong label 'test' in pod",
+			name:                      "workNamespace is zero, set wrong annotation 'test' in pod",
 			obj:                       newPodObj("karmada-es-cluster"),
 			pod:                       newPod(workNs, workName, true),
 			raw:                       []byte(`{"apiVersion":"v1","kind":"Pod","metadata":{"name":"pod","namespace":"default"}}`),
@@ -837,7 +838,10 @@ func TestWorkStatusController_recreateResourceIfNeeded(t *testing.T) {
 				"name":      "pod1",
 				"namespace": "default",
 				"labels": map[string]interface{}{
-					workv1alpha1.WorkNamespaceLabel: "karmada-es-cluster",
+					workv1alpha2.WorkUIDLabel: workUID,
+				},
+				"annotations": map[string]interface{}{
+					workv1alpha2.WorkNamespaceAnnotationKey: "karmada-es-cluster",
 				},
 			},
 		},

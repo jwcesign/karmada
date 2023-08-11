@@ -17,8 +17,9 @@ import (
 // CreatePropagationPolicy create PropagationPolicy with karmada client.
 func CreatePropagationPolicy(client karmada.Interface, policy *policyv1alpha1.PropagationPolicy) {
 	ginkgo.By(fmt.Sprintf("Creating PropagationPolicy(%s/%s)", policy.Namespace, policy.Name), func() {
-		_, err := client.PolicyV1alpha1().PropagationPolicies(policy.Namespace).Create(context.TODO(), policy, metav1.CreateOptions{})
+		policyCreated, err := client.PolicyV1alpha1().PropagationPolicies(policy.Namespace).Create(context.TODO(), policy, metav1.CreateOptions{})
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+		policy.UID = policyCreated.UID
 	})
 }
 

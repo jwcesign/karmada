@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -340,6 +341,7 @@ func TestSortClusterByWeight(t *testing.T) {
 }
 
 func TestFindOrphanWorks(t *testing.T) {
+	workUID := "93162d3c-ee8e-4995-9034-05f4d5d2c2b9"
 	type args struct {
 		c                client.Client
 		bindingNamespace string
@@ -362,7 +364,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       "wrong format",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "binding"),
+								workv1alpha2.ResourceBindingUIDLabel: workUID,
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ResourceBindingNamespaceAnnotationKey: "default",
@@ -388,7 +390,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "cluster1",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "binding"),
+								workv1alpha2.ResourceBindingUIDLabel: workUID,
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ResourceBindingNamespaceAnnotationKey: "default",
@@ -414,7 +416,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "cluster1",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "binding"),
+								workv1alpha2.ResourceBindingUIDLabel: workUID,
 							},
 						},
 					},
@@ -424,7 +426,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "clusterx",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "binding"),
+								workv1alpha2.ResourceBindingUIDLabel: workUID,
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ResourceBindingNamespaceAnnotationKey: "default",
@@ -444,7 +446,7 @@ func TestFindOrphanWorks(t *testing.T) {
 						Namespace:       names.ExecutionSpacePrefix + "cluster1",
 						ResourceVersion: "999",
 						Labels: map[string]string{
-							workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "binding"),
+							workv1alpha2.ResourceBindingUIDLabel: workUID,
 						},
 						Annotations: map[string]string{
 							workv1alpha2.ResourceBindingNamespaceAnnotationKey: "default",
@@ -465,7 +467,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "cluster1",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", "binding"),
+								workv1alpha2.ClusterResourceBindingUIDLabel: workUID,
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ClusterResourceBindingAnnotationKey: "binding",
@@ -489,7 +491,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "cluster1",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", "binding"),
+								workv1alpha2.ClusterResourceBindingUIDLabel: workUID,
 							},
 						},
 					},
@@ -499,7 +501,7 @@ func TestFindOrphanWorks(t *testing.T) {
 							Namespace:       names.ExecutionSpacePrefix + "clusterx",
 							ResourceVersion: "999",
 							Labels: map[string]string{
-								workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", "binding"),
+								workv1alpha2.ClusterResourceBindingUIDLabel: workUID,
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ClusterResourceBindingAnnotationKey: "binding",
@@ -518,7 +520,7 @@ func TestFindOrphanWorks(t *testing.T) {
 						Namespace:       names.ExecutionSpacePrefix + "cluster1",
 						ResourceVersion: "999",
 						Labels: map[string]string{
-							workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", "binding"),
+							workv1alpha2.ClusterResourceBindingUIDLabel: workUID,
 						},
 						Annotations: map[string]string{
 							workv1alpha2.ClusterResourceBindingAnnotationKey: "binding",
@@ -531,7 +533,12 @@ func TestFindOrphanWorks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindOrphanWorks(tt.args.c, tt.args.bindingNamespace, tt.args.bindingName, tt.args.expectClusters)
+			bindingMeta := &metav1.ObjectMeta{
+				Name:      tt.args.bindingName,
+				Namespace: tt.args.bindingNamespace,
+				UID:       types.UID(workUID),
+			}
+			got, err := FindOrphanWorks(tt.args.c, bindingMeta, tt.args.expectClusters)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FindOrphanWorks() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -949,7 +956,7 @@ func TestFetchWorkloadByLabelSelector(t *testing.T) {
 	}
 }
 
-func TestDeleteWorkByRBNamespaceAndName(t *testing.T) {
+func TestDeleteWorkByResourceBinding(t *testing.T) {
 	type args struct {
 		c         client.Client
 		namespace string
@@ -979,7 +986,7 @@ func TestDeleteWorkByRBNamespaceAndName(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "w1", Namespace: names.ExecutionSpacePrefix + "cluster",
 							Labels: map[string]string{
-								workv1alpha2.ResourceBindingReferenceKey: names.GenerateBindingReferenceKey("default", "foo"),
+								workv1alpha2.ResourceBindingUIDLabel: "93162d3c-ee8e-4995-9034-05f4d5d2c2b9",
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ResourceBindingNameAnnotationKey:      "foo",
@@ -997,7 +1004,8 @@ func TestDeleteWorkByRBNamespaceAndName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := DeleteWorkByRBNamespaceAndName(tt.args.c, tt.args.namespace, tt.args.name); (err != nil) != tt.wantErr {
+			bindingMeta := &metav1.ObjectMeta{Name: tt.args.name, Namespace: tt.args.namespace, UID: "93162d3c-ee8e-4995-9034-05f4d5d2c2b9"}
+			if err := DeleteWorkByResourceBinding(tt.args.c, bindingMeta); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteWorkByRBNamespaceAndName() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			list := &workv1alpha1.WorkList{}
@@ -1012,7 +1020,7 @@ func TestDeleteWorkByRBNamespaceAndName(t *testing.T) {
 	}
 }
 
-func TestDeleteWorkByCRBName(t *testing.T) {
+func TestDeleteWorkByClusterResourceBinding(t *testing.T) {
 	type args struct {
 		c    client.Client
 		name string
@@ -1031,7 +1039,7 @@ func TestDeleteWorkByCRBName(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "w1", Namespace: names.ExecutionSpacePrefix + "cluster",
 							Labels: map[string]string{
-								workv1alpha2.ClusterResourceBindingReferenceKey: names.GenerateBindingReferenceKey("", "foo"),
+								workv1alpha2.ClusterResourceBindingUIDLabel: "93162d3c-ee8e-4995-9034-05f4d5d2c2b9",
 							},
 							Annotations: map[string]string{
 								workv1alpha2.ClusterResourceBindingAnnotationKey: "foo",
@@ -1047,7 +1055,8 @@ func TestDeleteWorkByCRBName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := DeleteWorkByCRBName(tt.args.c, tt.args.name); (err != nil) != tt.wantErr {
+			binddingMeta := &metav1.ObjectMeta{Name: tt.args.name, UID: "93162d3c-ee8e-4995-9034-05f4d5d2c2b9"}
+			if err := DeleteWorkByClusterResourceBinding(tt.args.c, binddingMeta); (err != nil) != tt.wantErr {
 				t.Errorf("DeleteWorkByRBNamespaceAndName() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			list := &workv1alpha1.WorkList{}

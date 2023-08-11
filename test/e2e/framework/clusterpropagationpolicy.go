@@ -17,9 +17,17 @@ import (
 // CreateClusterPropagationPolicy create ClusterPropagationPolicy with karmada client.
 func CreateClusterPropagationPolicy(client karmada.Interface, policy *policyv1alpha1.ClusterPropagationPolicy) {
 	ginkgo.By(fmt.Sprintf("Creating ClusterPropagationPolicy(%s)", policy.Name), func() {
-		_, err := client.PolicyV1alpha1().ClusterPropagationPolicies().Create(context.TODO(), policy, metav1.CreateOptions{})
+		policyCreated, err := client.PolicyV1alpha1().ClusterPropagationPolicies().Create(context.TODO(), policy, metav1.CreateOptions{})
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+		policy.UID = policyCreated.UID
 	})
+}
+
+// GetClusterPropagationPolicyUID get ClusterPropagationPolicy UID with karmada client.
+func GetClusterPropagationPolicyUID(client karmada.Interface, name string) string {
+	policy, err := client.PolicyV1alpha1().ClusterPropagationPolicies().Get(context.TODO(), name, metav1.GetOptions{})
+	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
+	return string(policy.UID)
 }
 
 // RemoveClusterPropagationPolicy delete ClusterPropagationPolicy with karmada client.

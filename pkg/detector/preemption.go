@@ -80,16 +80,18 @@ func (d *ResourceDetector) handleClusterPropagationPolicyPreemption(policy *poli
 // preemptPropagationPolicy preempts resource template that is claimed by PropagationPolicy.
 func (d *ResourceDetector) preemptPropagationPolicy(resourceTemplate *unstructured.Unstructured, policy *policyv1alpha1.PropagationPolicy) (err error) {
 	rtLabels := resourceTemplate.GetLabels()
-	claimedPolicyNamespace := util.GetLabelValue(rtLabels, policyv1alpha1.PropagationPolicyNamespaceLabel)
-	claimedPolicyName := util.GetLabelValue(rtLabels, policyv1alpha1.PropagationPolicyNameLabel)
-	if claimedPolicyName == "" || claimedPolicyNamespace == "" {
+
+	cliamedPolicyUID := util.GetLabelValue(rtLabels, policyv1alpha1.PropagationPolicyUIDLabel)
+	if cliamedPolicyUID == "" {
 		return nil
 	}
 	// resource template has been claimed by policy itself.
-	if claimedPolicyNamespace == policy.Namespace && claimedPolicyName == policy.Name {
+	if cliamedPolicyUID == string(policy.UID) {
 		return nil
 	}
 
+	claimedPolicyNamespace := util.GetAnnotationValue(rtLabels, policyv1alpha1.PropagationPolicyNamespaceAnnotation)
+	claimedPolicyName := util.GetAnnotationValue(rtLabels, policyv1alpha1.PropagationPolicyNameAnnotation)
 	claimedPolicyObj, err := d.propagationPolicyLister.ByNamespace(claimedPolicyNamespace).Get(claimedPolicyName)
 	if err != nil {
 		klog.Errorf("Failed to retrieve claimed propagation policy(%s/%s): %v.", claimedPolicyNamespace, claimedPolicyName, err)
@@ -119,7 +121,7 @@ func (d *ResourceDetector) preemptPropagationPolicy(resourceTemplate *unstructur
 			"Propagation policy(%s/%s) preempted propagation policy(%s/%s) successfully", policy.Namespace, policy.Name, claimedPolicyNamespace, claimedPolicyName)
 	}()
 
-	if err = d.ClaimPolicyForObject(resourceTemplate, policy.Namespace, policy.Name, string(policy.UID)); err != nil {
+	if err = d.ClaimPolicyForObject(resourceTemplate, policy); err != nil {
 		klog.Errorf("Failed to claim new propagation policy(%s/%s) on resource template(%s, kind=%s, %s): %v.", policy.Namespace, policy.Name,
 			resourceTemplate.GetAPIVersion(), resourceTemplate.GetKind(), names.NamespacedKey(resourceTemplate.GetNamespace(), resourceTemplate.GetName()), err)
 		return err
@@ -131,7 +133,7 @@ func (d *ResourceDetector) preemptPropagationPolicy(resourceTemplate *unstructur
 
 // preemptClusterPropagationPolicyDirectly directly preempts resource template claimed by ClusterPropagationPolicy regardless of priority.
 func (d *ResourceDetector) preemptClusterPropagationPolicyDirectly(resourceTemplate *unstructured.Unstructured, policy *policyv1alpha1.PropagationPolicy) (err error) {
-	claimedPolicyName := util.GetLabelValue(resourceTemplate.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
+	claimedPolicyName := util.GetLabelValue(resourceTemplate.GetLabels(), policyv1alpha1.ClusterPropagationPolicyUIDLabel)
 	if claimedPolicyName == "" {
 		return nil
 	}
@@ -147,7 +149,7 @@ func (d *ResourceDetector) preemptClusterPropagationPolicyDirectly(resourceTempl
 			"Propagation policy(%s/%s) preempted cluster propagation policy(%s) successfully", policy.Namespace, policy.Name, claimedPolicyName)
 	}()
 
-	if err = d.ClaimPolicyForObject(resourceTemplate, policy.Namespace, policy.Name, string(policy.UID)); err != nil {
+	if err = d.ClaimPolicyForObject(resourceTemplate, policy); err != nil {
 		klog.Errorf("Failed to claim new propagation policy(%s/%s) on resource template(%s, kind=%s, %s) directly: %v.", policy.Namespace, policy.Name,
 			resourceTemplate.GetAPIVersion(), resourceTemplate.GetKind(), names.NamespacedKey(resourceTemplate.GetNamespace(), resourceTemplate.GetName()), err)
 		return err
@@ -159,7 +161,7 @@ func (d *ResourceDetector) preemptClusterPropagationPolicyDirectly(resourceTempl
 
 // preemptClusterPropagationPolicy preempts resource template that is claimed by ClusterPropagationPolicy.
 func (d *ResourceDetector) preemptClusterPropagationPolicy(resourceTemplate *unstructured.Unstructured, policy *policyv1alpha1.ClusterPropagationPolicy) (err error) {
-	claimedPolicyName := util.GetLabelValue(resourceTemplate.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
+	claimedPolicyName := util.GetLabelValue(resourceTemplate.GetLabels(), policyv1alpha1.ClusterPropagationPolicyUIDLabel)
 	if claimedPolicyName == "" {
 		return nil
 	}
@@ -197,7 +199,7 @@ func (d *ResourceDetector) preemptClusterPropagationPolicy(resourceTemplate *uns
 			"Cluster propagation policy(%s) preempted cluster propagation policy(%s) successfully", policy.Name, claimedPolicyName)
 	}()
 
-	if err = d.ClaimClusterPolicyForObject(resourceTemplate, policy.Name, string(policy.UID)); err != nil {
+	if err = d.ClaimClusterPolicyForObject(resourceTemplate, policy); err != nil {
 		klog.Errorf("Failed to claim new cluster propagation policy(%s) on resource template(%s, kind=%s, %s): %v.", policy.Name,
 			resourceTemplate.GetAPIVersion(), resourceTemplate.GetKind(), names.NamespacedKey(resourceTemplate.GetNamespace(), resourceTemplate.GetName()), err)
 		return err

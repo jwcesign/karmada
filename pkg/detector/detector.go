@@ -388,21 +388,15 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 		}
 	}()
 
-	if err := d.ClaimPolicyForObject(object, policy.Namespace, policy.Name, string(policy.UID)); err != nil {
+	if err := d.ClaimPolicyForObject(object, policy); err != nil {
 		klog.Errorf("Failed to claim policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
 
-	policyLabels := map[string]string{
-		policyv1alpha1.PropagationPolicyNamespaceLabel: policy.GetNamespace(),
-		policyv1alpha1.PropagationPolicyNameLabel:      policy.GetName(),
-		policyv1alpha1.PropagationPolicyUIDLabel:       string(policy.UID),
+	policyLabels, policyAnnotations, err := d.generateResourceBindingLabelsAnnotations(object, objectKey, policy.Namespace, policy.Name, string(policy.UID))
+	if err != nil {
+		return err
 	}
-	policyAnnotations := map[string]string{
-		policyv1alpha1.PropagationPolicyNamespaceAnnotation: policy.GetNamespace(),
-		policyv1alpha1.PropagationPolicyNameAnnotation:      policy.GetName(),
-	}
-
 	binding, err := d.BuildResourceBinding(object, objectKey, policyLabels, policyAnnotations, &policy.Spec)
 	if err != nil {
 		klog.Errorf("Failed to build resourceBinding for object: %s. error: %v", objectKey, err)
@@ -454,6 +448,31 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 	return nil
 }
 
+// generateResourceBindingLabelsAnnotations generates labels and annotations for ResourceBinding
+func (d *ResourceDetector) generateResourceBindingLabelsAnnotations(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	policyNamespace, policyName, refrenceKey string) (labels, annotations map[string]string, err error) {
+	labels = map[string]string{}
+	labels[policyv1alpha1.PropagationPolicyUIDLabel] = refrenceKey
+	annotations = map[string]string{
+		policyv1alpha1.PropagationPolicyNamespaceAnnotation: policyNamespace,
+		policyv1alpha1.PropagationPolicyNameAnnotation:      policyName,
+	}
+
+	return labels, annotations, nil
+}
+
+// generateClusterResourceBindingLabelsAnnotations generates labels and annotations for ClusterResourceBinding
+func (d *ResourceDetector) generateClusterResourceBindingLabelsAnnotations(object *unstructured.Unstructured, objectKey keys.ClusterWideKey,
+	policyName, refrenceKey string) (labels, annotations map[string]string, err error) {
+	labels = map[string]string{}
+	labels[policyv1alpha1.ClusterPropagationPolicyUIDLabel] = refrenceKey
+	annotations = map[string]string{
+		policyv1alpha1.ClusterPropagationPolicyAnnotation: policyName,
+	}
+
+	return labels, annotations, nil
+}
+
 // ApplyClusterPolicy starts propagate the object referenced by object key according to ClusterPropagationPolicy.
 // nolint:gocyclo
 func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured, objectKey keys.ClusterWideKey, policy *policyv1alpha1.ClusterPropagationPolicy) (err error) {
@@ -469,19 +488,15 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 		}
 	}()
 
-	if err := d.ClaimClusterPolicyForObject(object, policy.Name, string(policy.UID)); err != nil {
+	if err := d.ClaimClusterPolicyForObject(object, policy); err != nil {
 		klog.Errorf("Failed to claim cluster policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
 
-	policyLabels := map[string]string{
-		policyv1alpha1.ClusterPropagationPolicyLabel:    policy.GetName(),
-		policyv1alpha1.ClusterPropagationPolicyUIDLabel: string(policy.UID),
+	policyLabels, policyAnnotations, err := d.generateClusterResourceBindingLabelsAnnotations(object, objectKey, policy.Name, string(policy.UID))
+	if err != nil {
+		return err
 	}
-	policyAnnotations := map[string]string{
-		policyv1alpha1.ClusterPropagationPolicyAnnotation: policy.GetName(),
-	}
-
 	// Build `ResourceBinding` or `ClusterResourceBinding` according to the resource template's scope.
 	// For namespace-scoped resources, which namespace is not empty, building `ResourceBinding`.
 	// For cluster-scoped resources, which namespace is empty, building `ClusterResourceBinding`.
@@ -615,49 +630,34 @@ func (d *ResourceDetector) GetUnstructuredObject(objectKey keys.ClusterWideKey) 
 }
 
 // ClaimPolicyForObject set policy identifier which the object associated with.
-func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policyNamespace, policyName, policyUID string) error {
+func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.PropagationPolicy) error {
 	objLabels := object.GetLabels()
-	if objLabels == nil {
-		objLabels = make(map[string]string)
-	} else if len(objLabels) > 0 {
+	if len(objLabels) > 0 {
 		// object has been claimed, don't need to claim again
 		if !excludeClusterPolicy(objLabels) &&
-			objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] == policyNamespace &&
-			objLabels[policyv1alpha1.PropagationPolicyNameLabel] == policyName {
+			objLabels[policyv1alpha1.PropagationPolicyUIDLabel] == string(policy.UID) {
 			return nil
 		}
 	}
 
-	objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] = policyNamespace
-	objLabels[policyv1alpha1.PropagationPolicyNameLabel] = policyName
-	objLabels[policyv1alpha1.PropagationPolicyUIDLabel] = policyUID
-
-	objectAnnotations := object.GetAnnotations()
-	if objectAnnotations == nil {
-		objectAnnotations = make(map[string]string)
-	}
-	objectAnnotations[policyv1alpha1.PropagationPolicyNamespaceAnnotation] = policyNamespace
-	objectAnnotations[policyv1alpha1.PropagationPolicyNameAnnotation] = policyName
-
 	objectCopy := object.DeepCopy()
-	objectCopy.SetLabels(objLabels)
-	objectCopy.SetAnnotations(objectAnnotations)
+	util.MergeAnnotation(objectCopy, policyv1alpha1.PropagationPolicyNamespaceAnnotation, policy.Namespace)
+	util.MergeAnnotation(objectCopy, policyv1alpha1.PropagationPolicyNameAnnotation, policy.Name)
+	util.MergeLabel(objectCopy, policyv1alpha1.PropagationPolicyUIDLabel, string(policy.UID))
 	return d.Client.Update(context.TODO(), objectCopy)
 }
 
 // ClaimClusterPolicyForObject set cluster identifier which the object associated with.
-func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policyName, policyUID string) error {
-	claimedName := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
+func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.ClusterPropagationPolicy) error {
+	claimedUID := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyUIDLabel)
 	// object has been claimed, don't need to claim again
-	if claimedName == policyName {
+	if claimedUID == string(policy.UID) {
 		return nil
 	}
 
 	objectCopy := object.DeepCopy()
-	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyLabel, policyName)
-	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyUIDLabel, policyUID)
-
-	util.MergeAnnotation(objectCopy, policyv1alpha1.ClusterPropagationPolicyAnnotation, policyName)
+	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyUIDLabel, string(policy.UID))
+	util.MergeAnnotation(objectCopy, policyv1alpha1.ClusterPropagationPolicyAnnotation, policy.Name)
 	return d.Client.Update(context.TODO(), objectCopy)
 }
 
@@ -895,7 +895,7 @@ func (d *ResourceDetector) ReconcilePropagationPolicy(key util.QueueKey) error {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.Infof("PropagationPolicy(%s) has been removed.", ckey.NamespaceKey())
-			return d.HandlePropagationPolicyDeletion(ckey.Namespace, ckey.Name)
+			return d.HandlePropagationPolicyDeletion(ckey.UID, ckey.Namespace, ckey.Name)
 		}
 		klog.Errorf("Failed to get PropagationPolicy(%s): %v", ckey.NamespaceKey(), err)
 		return err
@@ -1005,7 +1005,7 @@ func (d *ResourceDetector) ReconcileClusterPropagationPolicy(key util.QueueKey) 
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.Infof("ClusterPropagationPolicy(%s) has been removed.", ckey.NamespaceKey())
-			return d.HandleClusterPropagationPolicyDeletion(ckey.Name)
+			return d.HandleClusterPropagationPolicyDeletion(ckey.UID, ckey.Name)
 		}
 
 		klog.Errorf("Failed to get ClusterPropagationPolicy(%s): %v", ckey.NamespaceKey(), err)
@@ -1026,13 +1026,12 @@ func (d *ResourceDetector) ReconcileClusterPropagationPolicy(key util.QueueKey) 
 // the resource template a change to match another policy).
 //
 // Note: The relevant ResourceBinding will continue to exist until the resource template is gone.
-func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, policyName string) error {
-	labelSet := labels.Set{
-		policyv1alpha1.PropagationPolicyNamespaceLabel: policyNS,
-		policyv1alpha1.PropagationPolicyNameLabel:      policyName,
+func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyUID string, policyNS, policyName string) error {
+	uidLabelSet := labels.Set{
+		policyv1alpha1.PropagationPolicyUIDLabel: policyUID,
 	}
 
-	rbs, err := helper.GetResourceBindings(d.Client, labelSet)
+	rbs, err := helper.GetResourceBindings(d.Client, uidLabelSet)
 	if err != nil {
 		klog.Errorf("Failed to list propagation bindings: %v", err)
 		return err
@@ -1040,7 +1039,7 @@ func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, poli
 
 	for index, binding := range rbs.Items {
 		// Cleanup the labels from the reference binding so that the karmada scheduler won't reschedule the binding.
-		if err := d.CleanupResourceBindingLabels(&rbs.Items[index], policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
+		if err := d.CleanupResourceBindingLabels(&rbs.Items[index], policyv1alpha1.PropagationPolicyUIDLabel); err != nil {
 			klog.Errorf("Failed to cleanup label from resource binding(%s/%s) when propagation policy(%s/%s) removing, error: %v",
 				binding.Namespace, binding.Name, policyNS, policyName, err)
 			return err
@@ -1048,7 +1047,7 @@ func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, poli
 
 		// Cleanup the labels from the object referencing by binding.
 		// In addition, this will give the object a chance to match another policy.
-		if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.PropagationPolicyNamespaceLabel, policyv1alpha1.PropagationPolicyNameLabel); err != nil {
+		if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.PropagationPolicyUIDLabel); err != nil {
 			klog.Errorf("Failed to cleanup label from resource(%s-%s/%s) when propagation policy(%s/%s) removing, error: %v",
 				binding.Spec.Resource.Kind, binding.Spec.Resource.Namespace, binding.Spec.Resource.Name, policyNS, policyName, err)
 			return err
@@ -1062,10 +1061,10 @@ func (d *ResourceDetector) HandlePropagationPolicyDeletion(policyNS string, poli
 // the resource template a change to match another policy).
 //
 // Note: The relevant ClusterResourceBinding or ResourceBinding will continue to exist until the resource template is gone.
-func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName string) error {
+func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyUID, policyName string) error {
 	var errs []error
 	labelSet := labels.Set{
-		policyv1alpha1.ClusterPropagationPolicyLabel: policyName,
+		policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
 	}
 
 	// load the ClusterResourceBindings which labeled with current policy
@@ -1076,7 +1075,7 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName str
 	} else if len(crbs.Items) > 0 {
 		for index, binding := range crbs.Items {
 			// Cleanup the labels from the reference binding so that the karmada scheduler won't reschedule the binding.
-			if err := d.CleanupClusterResourceBindingLabels(&crbs.Items[index], policyv1alpha1.ClusterPropagationPolicyLabel); err != nil {
+			if err := d.CleanupClusterResourceBindingLabels(&crbs.Items[index], policyv1alpha1.ClusterPropagationPolicyUIDLabel); err != nil {
 				klog.Errorf("Failed to cleanup label from cluster resource binding(%s) when cluster propagation policy(%s) removing, error: %v",
 					binding.Name, policyName, err)
 				errs = append(errs, err)
@@ -1084,7 +1083,7 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName str
 
 			// Cleanup the labels from the object referencing by binding.
 			// In addition, this will give the object a chance to match another policy.
-			if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.ClusterPropagationPolicyLabel); err != nil {
+			if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.ClusterPropagationPolicyUIDLabel); err != nil {
 				klog.Errorf("Failed to cleanup label from resource(%s-%s/%s) when cluster resource binding(%s) removing, error: %v",
 					binding.Spec.Resource.Kind, binding.Spec.Resource.Namespace, binding.Spec.Resource.Name, binding.Name, err)
 				errs = append(errs, err)
@@ -1100,7 +1099,7 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName str
 	} else if len(rbs.Items) > 0 {
 		for index, binding := range rbs.Items {
 			// Cleanup the labels from the reference binding so that the karmada scheduler won't reschedule the binding.
-			if err := d.CleanupResourceBindingLabels(&rbs.Items[index], policyv1alpha1.ClusterPropagationPolicyLabel); err != nil {
+			if err := d.CleanupResourceBindingLabels(&rbs.Items[index], policyv1alpha1.ClusterPropagationPolicyUIDLabel); err != nil {
 				klog.Errorf("Failed to cleanup label from resource binding(%s/%s) when cluster propagation policy(%s) removing, error: %v",
 					binding.Namespace, binding.Name, policyName, err)
 				errs = append(errs, err)
@@ -1108,7 +1107,7 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName str
 
 			// Cleanup the labels from the object referencing by binding.
 			// In addition, this will give the object a chance to match another policy.
-			if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.ClusterPropagationPolicyLabel); err != nil {
+			if err := d.CleanupLabels(binding.Spec.Resource, policyv1alpha1.ClusterPropagationPolicyUIDLabel); err != nil {
 				klog.Errorf("Failed to cleanup label from resource binding(%s/%s), error: %v", binding.Namespace, binding.Name, err)
 				errs = append(errs, err)
 			}
@@ -1124,7 +1123,7 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyDeletion(policyName str
 // from waiting list and throw the object to it's reconcile queue. If not, do nothing.
 // Finally, handle the propagation policy preemption process if preemption is enabled.
 func (d *ResourceDetector) HandlePropagationPolicyCreationOrUpdate(policy *policyv1alpha1.PropagationPolicy) error {
-	err := d.cleanPPUnmatchedResourceBindings(policy.Namespace, policy.Name, policy.Spec.ResourceSelectors)
+	err := d.cleanPPUnmatchedResourceBindings(&policy.ObjectMeta, policy.Spec.ResourceSelectors)
 	if err != nil {
 		return err
 	}
@@ -1132,7 +1131,7 @@ func (d *ResourceDetector) HandlePropagationPolicyCreationOrUpdate(policy *polic
 	// When updating fields other than ResourceSelector, should first find the corresponding ResourceBinding
 	// and add the bound object to the processor's queue for reconciliation to make sure that
 	// PropagationPolicy's updates can be synchronized to ResourceBinding.
-	resourceBindings, err := d.listPPDerivedRB(policy.Namespace, policy.Name)
+	resourceBindings, err := d.listPPDerivedRB(&policy.ObjectMeta)
 	if err != nil {
 		return err
 	}
@@ -1176,12 +1175,12 @@ func (d *ResourceDetector) HandlePropagationPolicyCreationOrUpdate(policy *polic
 // from waiting list and throw the object to it's reconcile queue. If not, do nothing.
 // Finally, handle the cluster propagation policy preemption process if preemption is enabled.
 func (d *ResourceDetector) HandleClusterPropagationPolicyCreationOrUpdate(policy *policyv1alpha1.ClusterPropagationPolicy) error {
-	err := d.cleanCPPUnmatchedResourceBindings(policy.Name, policy.Spec.ResourceSelectors)
+	err := d.cleanCPPUnmatchedResourceBindings(policy)
 	if err != nil {
 		return err
 	}
 
-	err = d.cleanUnmatchedClusterResourceBinding(policy.Name, policy.Spec.ResourceSelectors)
+	err = d.cleanUnmatchedClusterResourceBinding(policy)
 	if err != nil {
 		return err
 	}
@@ -1189,11 +1188,11 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyCreationOrUpdate(policy
 	// When updating fields other than ResourceSelector, should first find the corresponding ResourceBinding/ClusterResourceBinding
 	// and add the bound object to the processor's queue for reconciliation to make sure that
 	// ClusterPropagationPolicy's updates can be synchronized to ResourceBinding/ClusterResourceBinding.
-	resourceBindings, err := d.listCPPDerivedRB(policy.Name)
+	resourceBindings, err := d.listCPPDerivedRB(string(policy.UID), policy.Name)
 	if err != nil {
 		return err
 	}
-	clusterResourceBindings, err := d.listCPPDerivedCRB(policy.Name)
+	clusterResourceBindings, err := d.listCPPDerivedCRB(string(policy.UID), policy.Name)
 	if err != nil {
 		return err
 	}
