@@ -12,12 +12,14 @@ import (
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/client-go/transport"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 )
@@ -123,7 +125,7 @@ func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, err
 	return string(token), nil
 }
 
-func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonateToken string, responder rest.Responder) (http.Handler, error) {
+func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateToken string, responder rest.Responder) (http.Handler, error) {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
 		if !exist {
@@ -137,14 +139,25 @@ func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonate
 			}
 		}
 
+		upgrade := httpstream.IsUpgradeRequest(req)
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
+
+		if upgrade {
+			transport.SetAuthProxyHeaders(req, requester.GetName(), requester.GetGroups(), requester.GetExtra())
+		}
 
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
 
-		handler := NewThrottledUpgradeAwareProxyHandler(location, transport, true, false, responder)
-		handler.ServeHTTP(rw, req)
+		newReq := req.WithContext(req.Context())
+		newReq.Header = utilnet.CloneHeader(req.Header)
+		newReq.URL = location
+		newReq.Host = location.Host
+
+		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRT, true, upgrade, responder)
+
+		handler.ServeHTTP(rw, newReq)
 	}), nil
 }
 
