@@ -146,6 +146,8 @@ func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateTo
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
 
+		proxyRoundTripper := transport.NewAuthProxyRoundTripper(requester.GetName(), requester.GetGroups(), requester.GetExtra(), proxyRT)
+
 		newReq := req.WithContext(req.Context())
 		newReq.Header = utilnet.CloneHeader(req.Header)
 		newReq.URL = location
@@ -155,7 +157,7 @@ func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateTo
 			transport.SetAuthProxyHeaders(newReq, requester.GetName(), requester.GetGroups(), requester.GetExtra())
 		}
 
-		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRT, true, upgrade, responder)
+		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRoundTripper, true, upgrade, responder)
 		handler.ServeHTTP(rw, newReq)
 	}), nil
 }
