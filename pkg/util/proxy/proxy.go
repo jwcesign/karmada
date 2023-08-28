@@ -142,10 +142,6 @@ func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateTo
 		upgrade := httpstream.IsUpgradeRequest(req)
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
 
-		if upgrade {
-			transport.SetAuthProxyHeaders(req, requester.GetName(), requester.GetGroups(), requester.GetExtra())
-		}
-
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
@@ -155,8 +151,11 @@ func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateTo
 		newReq.URL = location
 		newReq.Host = location.Host
 
-		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRT, true, upgrade, responder)
+		if upgrade {
+			transport.SetAuthProxyHeaders(newReq, requester.GetName(), requester.GetGroups(), requester.GetExtra())
+		}
 
+		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRT, true, upgrade, responder)
 		handler.ServeHTTP(rw, newReq)
 	}), nil
 }
