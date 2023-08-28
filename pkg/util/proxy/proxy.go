@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -97,7 +98,21 @@ func createProxyTransport(cluster *clusterapis.Cluster) (*http.Transport, error)
 		}
 		trans.Proxy = http.ProxyURL(u)
 	}
+
+	if len(cluster.Spec.ProxyHeader) != 0 {
+		trans.ProxyConnectHeader = parseProxyHeaders(cluster.Spec.ProxyHeader)
+	}
+
 	return trans, nil
+}
+
+func parseProxyHeaders(proxyHeaders map[string]string) http.Header {
+	header := http.Header{}
+	for headerKey, headerValues := range proxyHeaders {
+		values := strings.Split(headerValues, ",")
+		header[headerKey] = values
+	}
+	return header
 }
 
 func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, error) {
