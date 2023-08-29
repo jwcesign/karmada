@@ -100,6 +100,7 @@ func (r *ResourceMetricsProvider) getMetricsParallel(resourceFunc queryResourceF
 	// step 2. Query metrics from the filtered target clusters
 	metricsChanel := make(chan interface{})
 
+	var errMsg error
 	var wg sync.WaitGroup
 	for _, clusterName := range targetClusters {
 		wg.Add(1)
@@ -118,6 +119,7 @@ func (r *ResourceMetricsProvider) getMetricsParallel(resourceFunc queryResourceF
 				if !errors.IsNotFound(err) {
 					klog.Errorf("Failed to query metrics in cluster(%s): %v", cluster, err)
 				}
+				errMsg = fmt.Errorf("Failed to query metrics in cluster(%s): %v", cluster, err)
 				return
 			}
 
@@ -140,7 +142,7 @@ func (r *ResourceMetricsProvider) getMetricsParallel(resourceFunc queryResourceF
 		metrics = append(metrics, data)
 	}
 
-	return metrics, nil
+	return metrics, errMsg
 }
 
 // queryPodMetricsByName queries metrics by pod name from target clusters
