@@ -49,8 +49,8 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 	if err != nil {
 		return nil, err
 	}
-
 	location.Path = path.Join(location.Path, proxyPath)
+
 	return newProxyHandlerNew(location, cluster, impersonateToken, responder)
 }
 
@@ -70,10 +70,6 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
 
-		// Retain RawQuery in location because upgrading the request will use it.
-		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
-		location.RawQuery = req.URL.RawQuery
-
 		var proxyData *url.URL
 		if proxyURL := cluster.Spec.ProxyURL; proxyURL != "" {
 			proxyData, _ = url.Parse(proxyURL)
@@ -85,7 +81,8 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 				UserName: requester.GetName(),
 				Groups:   requester.GetGroups(),
 			},
-			Proxy: http.ProxyURL(proxyData),
+			TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
+			Proxy:           http.ProxyURL(proxyData),
 		}
 		transport, err := clientgorest.TransportFor(cfg)
 		if err != nil {
@@ -98,10 +95,13 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			return
 		}
 
+		// Retain RawQuery in location because upgrading the request will use it.
+		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
+		location.RawQuery = req.URL.RawQuery
+		klog.Infof("jw4:%#v", location)
+
 		handler := proxy.NewUpgradeAwareHandler(location, transport, false, false, proxy.NewErrorResponder(responder))
 		handler.UpgradeTransport = upgradeTransport
-		handler.UseRequestLocation = true
-		handler.UseLocationHost = true
 
 		handler.ServeHTTP(rw, req)
 	}), nil
@@ -112,7 +112,12 @@ func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoun
 	if err != nil {
 		return nil, err
 	}
+	tlsConfig, err := transport.TLSConfigFor(transportConfig)
+	if err != nil {
+		return nil, err
+	}
 	rt := utilnet.SetOldTransportDefaults(&http.Transport{
+		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
