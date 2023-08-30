@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -15,6 +14,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -110,28 +110,44 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 }
 
 func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoundTripper, error) {
-	transportConfig, err := config.TransportConfig()
+	//transportConfig, err := config.TransportConfig()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//tlsConfig, err := transport.TLSConfigFor(transportConfig)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//rt := utilnet.SetOldTransportDefaults(&http.Transport{
+	//	TLSClientConfig: tlsConfig,
+	//	DialContext: (&net.Dialer{
+	//		Timeout:   30 * time.Second,
+	//		KeepAlive: 30 * time.Second,
+	//	}).DialContext,
+	//	Proxy: config.Proxy,
+	//})
+	//
+	//upgrader, err := transport.HTTPWrappersForConfig(transportConfig, rt)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return proxy.NewUpgradeRequestRoundTripper(rt, upgrader), nil
+
+	tlsConfig, err := clientgorest.TLSConfigFor(config)
 	if err != nil {
 		return nil, err
 	}
-	tlsConfig, err := transport.TLSConfigFor(transportConfig)
-	if err != nil {
-		return nil, err
-	}
-	rt := utilnet.SetOldTransportDefaults(&http.Transport{
-		TLSClientConfig: tlsConfig,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		Proxy: config.Proxy,
+	upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
+		TLS:        tlsConfig,
+		Proxier:    config.Proxy,
+		PingPeriod: time.Second * 5,
 	})
 
-	upgrader, err := transport.HTTPWrappersForConfig(transportConfig, rt)
+	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
 	if err != nil {
 		return nil, err
 	}
-	return proxy.NewUpgradeRequestRoundTripper(rt, upgrader), nil
+	return proxy.NewUpgradeRequestRoundTripper(wapper, upgradeRoundTripper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
