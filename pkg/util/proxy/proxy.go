@@ -141,7 +141,7 @@ func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoun
 		PingPeriod: time.Second * 5,
 	})
 
-	wapper, err := clientgorest.HTTPWrappersForConfig(config, proxy.MirrorRequest)
+	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
 	if err != nil {
 		return nil, err
 	}
