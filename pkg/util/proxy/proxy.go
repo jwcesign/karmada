@@ -102,6 +102,8 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 
 		handler := proxy.NewUpgradeAwareHandler(location, transport, false, false, proxy.NewErrorResponder(responder))
 		handler.UpgradeTransport = upgradeTransport
+		handler.UseLocationHost = true
+		handler.UseLocationHost = true
 
 		handler.ServeHTTP(rw, req)
 	}), nil
