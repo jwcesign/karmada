@@ -141,11 +141,7 @@ func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoun
 		PingPeriod: time.Second * 5,
 	})
 
-	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
-	if err != nil {
-		return nil, err
-	}
-	return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, wapper), nil
+	return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, upgradeRoundTripper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
