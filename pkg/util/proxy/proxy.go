@@ -9,12 +9,12 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"time"
 
+	"github.com/magisterquis/connectproxy"
+	netproxy "golang.org/x/net/proxy"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -89,7 +89,7 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			klog.Errorf("jw:%v", err)
 			return
 		}
-		upgradeTransport, err := makeUpgradeTransport(cfg)
+		upgradeTransport, err := makeUpgradeTransport(cfg, proxyData)
 		if err != nil {
 			klog.Errorf("jw:%v", err)
 			return
@@ -102,12 +102,13 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 
 		handler := proxy.NewUpgradeAwareHandler(location, transport, false, false, proxy.NewErrorResponder(responder))
 		handler.UpgradeTransport = upgradeTransport
+		handler.UseRequestLocation = true
 
 		handler.ServeHTTP(rw, req)
 	}), nil
 }
 
-func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoundTripper, error) {
+func makeUpgradeTransport(config *clientgorest.Config, proxyURL *url.URL) (proxy.UpgradeRequestRoundTripper, error) {
 	//transportConfig, err := config.TransportConfig()
 	//if err != nil {
 	//	return nil, err
@@ -135,13 +136,23 @@ func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoun
 	if err != nil {
 		return nil, err
 	}
-	upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
-		TLS:        tlsConfig,
-		Proxier:    config.Proxy,
-		PingPeriod: time.Second * 5,
+
+	d, err := connectproxy.New(proxyURL, netproxy.Direct)
+	if nil != err {
+		return nil, err
+	}
+
+	upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
+		TLSClientConfig: tlsConfig,
+		Dial:            d.Dial,
+		Proxy:           config.Proxy,
 	})
 
-	return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, upgradeRoundTripper), nil
+	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
+	if err != nil {
+		return nil, err
+	}
+	return proxy.NewUpgradeRequestRoundTripper(wapper, upgradeRoundTripper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
