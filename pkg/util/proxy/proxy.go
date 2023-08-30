@@ -127,7 +127,7 @@ func makeUpgradeTransport(config *clientgorest.Config) (proxy.UpgradeRequestRoun
 		Proxy: config.Proxy,
 	})
 
-	upgrader, err := transport.HTTPWrappersForConfig(transportConfig, proxy.MirrorRequest)
+	upgrader, err := transport.HTTPWrappersForConfig(transportConfig, rt)
 	if err != nil {
 		return nil, err
 	}
