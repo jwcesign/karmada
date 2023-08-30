@@ -27,13 +27,6 @@ import (
 // ConnectCluster returns a handler for proxy cluster.
 func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath string,
 	secretGetter func(context.Context, string, string) (*corev1.Secret, error), responder rest.Responder) (http.Handler, error) {
-	location, transport, err := Location(cluster)
-	if err != nil {
-		return nil, err
-	}
-
-	location.Path = path.Join(location.Path, proxyPath)
-
 	if cluster.Spec.ImpersonatorSecretRef == nil {
 		return nil, fmt.Errorf("the impersonatorSecretRef of cluster %s is nil", cluster.Name)
 	}
@@ -47,6 +40,13 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 	if err != nil {
 		return nil, fmt.Errorf("failed to get impresonateToken for cluster %s: %v", cluster.Name, err)
 	}
+
+	location, transport, err := Location(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	location.Path = path.Join(location.Path, proxyPath)
 
 	return newProxyHandler(location, transport, impersonateToken, responder)
 }
@@ -158,6 +158,7 @@ func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateTo
 		}
 
 		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRoundTripper, true, upgrade, responder)
+		handler.UpgradeTransport = proxy.NewUpgradeRequestRoundTripper(proxyRT, proxy.MirrorRequest)
 		handler.ServeHTTP(rw, newReq)
 	}), nil
 }
