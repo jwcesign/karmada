@@ -471,12 +471,11 @@ func (h *UpgradeAwareHandler) DialForUpgrade(req *http.Request) (net.Conn, error
 	if h.UpgradeTransport == nil {
 		return dial(req, h.Transport)
 	}
-	klog.Infof("jw6:%#v", *req)
 	updatedReq, err := h.UpgradeTransport.WrapRequest(req)
 	if err != nil {
+		klog.Infof("jw11:%v", err)
 		return nil, err
 	}
-	klog.Infof("jw7:%#v", *updatedReq)
 	return dial(updatedReq, h.UpgradeTransport)
 }
 
@@ -495,7 +494,6 @@ func getResponse(r io.Reader) (*http.Response, []byte, error) {
 
 // dial dials the backend at req.URL and writes req to it.
 func dial(req *http.Request, transport http.RoundTripper) (net.Conn, error) {
-	klog.Infof("jw5:%#v", *req)
 	conn, err := dialURL(req.Context(), req.URL, transport)
 	if err != nil {
 		return nil, fmt.Errorf("error dialing backend: %v", err)

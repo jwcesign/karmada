@@ -23,6 +23,7 @@ require (
 	github.com/vektra/mockery/v2 v2.10.0
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	go.uber.org/atomic v1.9.0
+	golang.org/x/net v0.12.0
 	golang.org/x/term v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
@@ -112,6 +113,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
@@ -166,7 +168,6 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
