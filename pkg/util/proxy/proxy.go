@@ -8,23 +8,37 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
+	"github.com/magisterquis/connectproxy"
+	netproxy "golang.org/x/net/proxy"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
+	registryrest "k8s.io/apiserver/pkg/registry/rest"
+	clientgorest "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport"
+	"k8s.io/klog/v2"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 )
 
 // ConnectCluster returns a handler for proxy cluster.
-func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath string,
-	secretGetter func(context.Context, string, string) (*corev1.Secret, error), responder rest.Responder) (http.Handler, error) {
-	location, transport, err := Location(cluster)
+func ConnectCluster(
+	ctx context.Context,
+	cluster *clusterapis.Cluster,
+	proxyPath string,
+	secretGetter func(context.Context, string, string) (*corev1.Secret, error),
+	responder rest.Responder,
+) (http.Handler, error) {
+	location, _, err := Location(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -45,12 +59,136 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 		return nil, fmt.Errorf("failed to get impresonateToken for cluster %s: %v", cluster.Name, err)
 	}
 
-	return newProxyHandler(location, transport, impersonateToken, responder)
+	return newProxyHandlerNew(location, cluster, impersonateToken, responder)
+}
+
+func newProxyHandlerNew(
+	location *url.URL,
+	cluster *clusterapis.Cluster,
+	impersonateToken string,
+	responder registryrest.Responder,
+) (http.Handler, error) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		requester, exist := request.UserFrom(req.Context())
+		if !exist {
+			responsewriters.InternalError(rw, req, errors.New("no user found for request"))
+			return
+		}
+
+		req.Header.Set(authenticationv1.ImpersonateUserHeader, requester.GetName())
+		for _, group := range requester.GetGroups() {
+			if !skipGroup(group) {
+				req.Header.Add(authenticationv1.ImpersonateGroupHeader, group)
+			}
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
+
+		var proxyURL *url.URL
+		if cluster.Spec.ProxyURL != "" {
+			proxyURL, _ = url.Parse(cluster.Spec.ProxyURL)
+		}
+		cfg := &clientgorest.Config{
+			Host:        cluster.Spec.APIEndpoint,
+			BearerToken: impersonateToken,
+			Impersonate: clientgorest.ImpersonationConfig{
+				UserName: requester.GetName(),
+				Groups:   requester.GetGroups(),
+			},
+			TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
+			Proxy:           http.ProxyURL(proxyURL),
+		}
+
+		// Retain RawQuery in location because upgrading the request will use it.
+		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
+		location.RawQuery = req.URL.RawQuery
+		klog.Infof("jw4:%#v", location)
+
+		exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", location)
+		if err != nil {
+			klog.Errorf("jw:%v", err)
+			return
+		}
+		err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+			Stdin:             nil,
+			Stdout:            rw,
+			Stderr:            rw,
+			Tty:               true,
+			TerminalSizeQueue: nil,
+		})
+		if err != nil {
+			klog.Errorf("jw:%v", err)
+			return
+		}
+
+		proxyTransport, err := clientgorest.TransportFor(cfg)
+		if err != nil {
+			klog.Errorf("jw:%v", err)
+			return
+		}
+		upgradeTransport, err := makeUpgradeTransport(cfg, proxyURL)
+		if err != nil {
+			klog.Errorf("jw:%v", err)
+			return
+		}
+
+		handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
+		handler.UpgradeTransport = upgradeTransport
+		handler.UseRequestLocation = true
+
+		handler.ServeHTTP(rw, req)
+	}), nil
+}
+
+func makeUpgradeTransport(config *clientgorest.Config, proxyURL *url.URL) (proxy.UpgradeRequestRoundTripper, error) {
+	//transportConfig, err := config.TransportConfig()
+	//if err != nil {
+	//	return nil, err
+	//}
+	//tlsConfig, err := transport.TLSConfigFor(transportConfig)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//rt := utilnet.SetOldTransportDefaults(&http.Transport{
+	//	TLSClientConfig: tlsConfig,
+	//	DialContext: (&net.Dialer{
+	//		Timeout:   30 * time.Second,
+	//		KeepAlive: 30 * time.Second,
+	//	}).DialContext,
+	//	Proxy: config.Proxy,
+	//})
+	//
+	//upgrader, err := transport.HTTPWrappersForConfig(transportConfig, rt)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//return proxy.NewUpgradeRequestRoundTripper(rt, upgrader), nil
+
+	tlsConfig, err := clientgorest.TLSConfigFor(config)
+	if err != nil {
+		return nil, err
+	}
+
+	d, err := connectproxy.New(proxyURL, netproxy.Direct)
+	if nil != err {
+		return nil, err
+	}
+
+	upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
+		TLSClientConfig: tlsConfig,
+		Dial:            d.Dial,
+		Proxy:           config.Proxy,
+	})
+
+	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
+	if err != nil {
+		return nil, err
+	}
+	return proxy.NewUpgradeRequestRoundTripper(wapper, upgradeRoundTripper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
 // errors to the caller.
-func NewThrottledUpgradeAwareProxyHandler(location *url.URL, transport http.RoundTripper, wrapTransport, upgradeRequired bool, responder rest.Responder) *proxy.UpgradeAwareHandler {
+func NewThrottledUpgradeAwareProxyHandler(location *url.URL, transport http.RoundTripper, wrapTransport, upgradeRequired bool, responder registryrest.Responder) *proxy.UpgradeAwareHandler {
 	return proxy.NewUpgradeAwareHandler(location, transport, wrapTransport, upgradeRequired, proxy.NewErrorResponder(responder))
 }
 
@@ -61,12 +199,12 @@ func Location(cluster *clusterapis.Cluster) (*url.URL, http.RoundTripper, error)
 		return nil, nil, err
 	}
 
-	transport, err := createProxyTransport(cluster)
+	proxyTransport, err := createProxyTransport(cluster)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return location, transport, nil
+	return location, proxyTransport, nil
 }
 
 func constructLocation(cluster *clusterapis.Cluster) (*url.URL, error) {
@@ -97,7 +235,21 @@ func createProxyTransport(cluster *clusterapis.Cluster) (*http.Transport, error)
 		}
 		trans.Proxy = http.ProxyURL(u)
 	}
+
+	if len(cluster.Spec.ProxyHeader) != 0 {
+		trans.ProxyConnectHeader = parseProxyHeaders(cluster.Spec.ProxyHeader)
+	}
+
 	return trans, nil
+}
+
+func parseProxyHeaders(proxyHeaders map[string]string) http.Header {
+	header := http.Header{}
+	for headerKey, headerValues := range proxyHeaders {
+		values := strings.Split(headerValues, ",")
+		header[headerKey] = values
+	}
+	return header
 }
 
 func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, error) {
@@ -108,7 +260,7 @@ func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, err
 	return string(token), nil
 }
 
-func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonateToken string, responder rest.Responder) (http.Handler, error) {
+func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateToken string, responder registryrest.Responder) (http.Handler, error) {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
 		if !exist {
@@ -122,14 +274,26 @@ func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonate
 			}
 		}
 
+		upgrade := httpstream.IsUpgradeRequest(req)
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
 
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
 
-		handler := NewThrottledUpgradeAwareProxyHandler(location, transport, true, false, responder)
-		handler.ServeHTTP(rw, req)
+		proxyRoundTripper := transport.NewAuthProxyRoundTripper(requester.GetName(), requester.GetGroups(), requester.GetExtra(), proxyRT)
+
+		newReq := req.WithContext(req.Context())
+		newReq.Header = utilnet.CloneHeader(req.Header)
+		newReq.URL = location
+		newReq.Host = location.Host
+
+		if upgrade {
+			transport.SetAuthProxyHeaders(newReq, requester.GetName(), requester.GetGroups(), requester.GetExtra())
+		}
+
+		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRoundTripper, true, upgrade, responder)
+		handler.ServeHTTP(rw, newReq)
 	}), nil
 }
 
