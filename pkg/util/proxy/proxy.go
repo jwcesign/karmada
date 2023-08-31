@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -28,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
+	"github.com/karmada-io/karmada/pkg/util/lifted"
 )
 
 // ConnectCluster returns a handler for proxy cluster.
@@ -38,7 +40,7 @@ func ConnectCluster(
 	secretGetter func(context.Context, string, string) (*corev1.Secret, error),
 	responder rest.Responder,
 ) (http.Handler, error) {
-	location, _, err := Location(cluster)
+	location, proxyTransport, err := Location(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +50,9 @@ func ConnectCluster(
 	if cluster.Spec.ImpersonatorSecretRef == nil {
 		return nil, fmt.Errorf("the impersonatorSecretRef of cluster %s is nil", cluster.Name)
 	}
+
+	proxyRequestInfo := lifted.NewRequestInfo(&http.Request{URL: &url.URL{Path: proxyPath}})
+	isExecCmd := proxyRequestInfo.Subresource == "exec"
 
 	secret, err := secretGetter(ctx, cluster.Spec.ImpersonatorSecretRef.Namespace, cluster.Spec.ImpersonatorSecretRef.Name)
 	if err != nil {
@@ -59,15 +64,99 @@ func ConnectCluster(
 		return nil, fmt.Errorf("failed to get impresonateToken for cluster %s: %v", cluster.Name, err)
 	}
 
-	return newProxyHandlerNew(location, cluster, impersonateToken, responder)
+	return newProxyHandlerNew(location, proxyTransport, cluster, impersonateToken, isExecCmd, responder)
 }
 
 func newProxyHandlerNew(
 	location *url.URL,
+	proxyTransport http.RoundTripper,
 	cluster *clusterapis.Cluster,
 	impersonateToken string,
-	responder registryrest.Responder,
+	isExecCmd bool,
+	responder rest.Responder,
 ) (http.Handler, error) {
+	if isExecCmd {
+		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			requester, exist := request.UserFrom(req.Context())
+			if !exist {
+				responsewriters.InternalError(rw, req, errors.New("no user found for request"))
+				return
+			}
+
+			impersonateGroups := make([]string, 0, len(requester.GetGroups()))
+			for _, group := range requester.GetGroups() {
+				if !skipGroup(group) {
+					impersonateGroups = append(impersonateGroups, group)
+				}
+			}
+
+			var proxyURL *url.URL
+			if cluster.Spec.ProxyURL != "" {
+				proxyURL, _ = url.Parse(cluster.Spec.ProxyURL)
+			}
+			cfg := &clientgorest.Config{
+				Host:        cluster.Spec.APIEndpoint,
+				BearerToken: impersonateToken,
+				Impersonate: clientgorest.ImpersonationConfig{
+					UserName: requester.GetName(),
+					Groups:   impersonateGroups,
+				},
+				TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
+				Proxy:           http.ProxyURL(proxyURL),
+			}
+
+			// Retain RawQuery in location because upgrading the request will use it.
+			// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
+			location.RawQuery = req.URL.RawQuery
+
+			exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", location)
+			if err != nil {
+				klog.Errorf("jw:%v", err)
+				return
+			}
+			in := &bytes.Buffer{}
+			out := &bytes.Buffer{}
+			errOut := &bytes.Buffer{}
+			err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+				Stdin:             in,
+				Stdout:            out,
+				Stderr:            errOut,
+				Tty:               false,
+				TerminalSizeQueue: nil,
+			})
+			if err != nil {
+				klog.Errorf("jw:%v", err)
+				return
+			}
+
+			outStr := out.String()
+			klog.InfoS("[debug: jw]", "in", in.String(), "out", outStr, "outErr", errOut.String())
+
+			rw.Header().Set("X-Stream-Protocol-Version", "v4.channel.k8s.io")
+			rw.Header().Set("Connection", "Upgrade")
+			rw.Header().Set("Upgrade", "SPDY/3.1")
+			rw.WriteHeader(http.StatusOK)
+			_, _ = rw.Write([]byte(outStr))
+			rw.(http.Flusher).Flush()
+
+			//proxyTransport, err := clientgorest.TransportFor(cfg)
+			//if err != nil {
+			//	klog.Errorf("jw:%v", err)
+			//	return
+			//}
+			//upgradeTransport, err := makeUpgradeTransport(cfg, proxyURL)
+			//if err != nil {
+			//	klog.Errorf("jw:%v", err)
+			//	return
+			//}
+			//
+			//handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
+			//handler.UpgradeTransport = upgradeTransport
+			//handler.UseRequestLocation = true
+			//
+			//handler.ServeHTTP(rw, req)
+		}), nil
+	}
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
 		if !exist {
@@ -83,58 +172,11 @@ func newProxyHandlerNew(
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
 
-		var proxyURL *url.URL
-		if cluster.Spec.ProxyURL != "" {
-			proxyURL, _ = url.Parse(cluster.Spec.ProxyURL)
-		}
-		cfg := &clientgorest.Config{
-			Host:        cluster.Spec.APIEndpoint,
-			BearerToken: impersonateToken,
-			Impersonate: clientgorest.ImpersonationConfig{
-				UserName: requester.GetName(),
-				Groups:   requester.GetGroups(),
-			},
-			TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
-			Proxy:           http.ProxyURL(proxyURL),
-		}
-
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
-		klog.Infof("jw4:%#v", location)
-
-		exec, err := remotecommand.NewSPDYExecutor(cfg, "POST", location)
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
-		err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
-			Stdin:             nil,
-			Stdout:            rw,
-			Stderr:            rw,
-			Tty:               true,
-			TerminalSizeQueue: nil,
-		})
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
-
-		proxyTransport, err := clientgorest.TransportFor(cfg)
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
-		upgradeTransport, err := makeUpgradeTransport(cfg, proxyURL)
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
 
 		handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
-		handler.UpgradeTransport = upgradeTransport
-		handler.UseRequestLocation = true
-
 		handler.ServeHTTP(rw, req)
 	}), nil
 }
