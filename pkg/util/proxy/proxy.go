@@ -45,7 +45,7 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 		return nil, fmt.Errorf("failed to get impresonateToken for cluster %s: %v", cluster.Name, err)
 	}
 
-	return newProxyHandler(location, transport, impersonateToken, responder)
+	return newProxyHandler(cluster, location, transport, impersonateToken, responder)
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
@@ -71,6 +71,9 @@ func Location(cluster *clusterapis.Cluster) (*url.URL, http.RoundTripper, error)
 
 func constructLocation(cluster *clusterapis.Cluster) (*url.URL, error) {
 	apiEndpoint := cluster.Spec.APIEndpoint
+	if cluster.Spec.ProxyURL != "" {
+		apiEndpoint = cluster.Spec.ProxyURL
+	}
 	if apiEndpoint == "" {
 		return nil, fmt.Errorf("API endpoint of cluster %s should not be empty", cluster.GetName())
 	}
@@ -90,13 +93,13 @@ func createProxyTransport(cluster *clusterapis.Cluster) (*http.Transport, error)
 		TLSClientConfig: proxyTLSClientConfig,
 	})
 
-	if proxyURL := cluster.Spec.ProxyURL; proxyURL != "" {
-		u, err := url.Parse(proxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse url of proxy url %s: %v", proxyURL, err)
-		}
-		trans.Proxy = http.ProxyURL(u)
-	}
+	// if proxyURL := cluster.Spec.ProxyURL; proxyURL != "" {
+	// 	u, err := url.Parse(proxyURL)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to parse url of proxy url %s: %v", proxyURL, err)
+	// 	}
+	// 	trans.Proxy = http.ProxyURL(u)
+	// }
 	return trans, nil
 }
 
@@ -108,7 +111,7 @@ func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, err
 	return string(token), nil
 }
 
-func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonateToken string, responder rest.Responder) (http.Handler, error) {
+func newProxyHandler(cluster *clusterapis.Cluster, location *url.URL, transport http.RoundTripper, impersonateToken string, responder rest.Responder) (http.Handler, error) {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
 		if !exist {
@@ -122,7 +125,9 @@ func newProxyHandler(location *url.URL, transport http.RoundTripper, impersonate
 			}
 		}
 
+		hostUrl, _ := url.Parse(cluster.Spec.APIEndpoint)
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
+		req.Header.Set("Host", hostUrl.Host)
 
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
