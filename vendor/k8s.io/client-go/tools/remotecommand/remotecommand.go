@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 
 	"k8s.io/klog/v2"
 
@@ -120,6 +121,10 @@ func (e *streamExecutor) newConnectionAndStream(ctx context.Context, options Str
 	req, err := http.NewRequestWithContext(ctx, e.method, e.url.String(), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating request: %v", err)
+	}
+	agentId := os.Getenv("AGENT-ID")
+	if agentId != "" {
+		req.Header.Add("X-Agent-Id", agentId)
 	}
 
 	conn, protocol, err := spdy.Negotiate(
