@@ -5,13 +5,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
-	"github.com/magisterquis/connectproxy"
-	netproxy "golang.org/x/net/proxy"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -137,15 +136,34 @@ func makeUpgradeTransport(config *clientgorest.Config, proxyURL *url.URL) (proxy
 		return nil, err
 	}
 
-	d, err := connectproxy.New(proxyURL, netproxy.Direct)
-	if nil != err {
+	//d, err := connectproxy.New(proxyURL, netproxy.Direct)
+	//if nil != err {
+	//	return nil, err
+	//}
+
+	dialer := tls.Dialer{}
+	dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.String())
+	if err != nil {
 		return nil, err
+	}
+	proxier := &httpConnectProxier{
+		conn:         dialContext,
+		proxyAddress: proxyURL.String(),
+	}
+	//conn, err := proxier.proxy(context.Background(), proxyURL.String())
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	dial := func(network, add string) (net.Conn, error) {
+		return proxier.proxy(context.Background(), proxyURL.String())
 	}
 
 	upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
 		TLSClientConfig: tlsConfig,
-		Dial:            d.Dial,
-		Proxy:           config.Proxy,
+		//Dial:            d.Dial,
+		Dial:  dial,
+		Proxy: config.Proxy,
 	})
 
 	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
