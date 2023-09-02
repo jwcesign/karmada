@@ -11,11 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
-
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -91,12 +90,6 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			return
 		}
 
-		upgradeTransport, err := makeUpgradeTransport(cfg, proxyData, location.Host)
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
-
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
@@ -115,61 +108,13 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			PingPeriod: time.Second * 5,
 		})
 
-		handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
-		handler.UpgradeTransport = upgradeTransport
+		handler := NewUpgradeAwareHandler(location, proxyTransport, false, false, NewErrorResponder(responder))
+		//handler.UpgradeTransport = upgradeTransport
 		handler.SpdyTransport = upgradeRoundTripper
 		//handler.UseRequestLocation = true
 
 		handler.ServeHTTP(rw, req)
 	}), nil
-}
-
-func makeUpgradeTransport(
-	config *clientgorest.Config,
-	proxyURL *url.URL,
-	locationHost string,
-) (proxy.UpgradeRequestRoundTripper, error) {
-	tlsConfig, err := clientgorest.TLSConfigFor(config)
-	if err != nil {
-		klog.Errorf("jw:%v", err)
-		return nil, err
-	}
-	klog.InfoS("tlsConfig info", "tlsConfig", tlsConfig)
-
-	upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
-		TLS:        tlsConfig,
-		Proxier:    http.ProxyURL(proxyURL),
-		PingPeriod: time.Second * 5,
-	})
-
-	//dialer := net.Dialer{}
-	//dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.Host)
-	//if err != nil {
-	//	klog.Errorf("jw:%v", err)
-	//	return nil, err
-	//}
-	//proxier := &httpConnectProxier{
-	//	conn:         dialContext,
-	//	proxyAddress: proxyURL.Host,
-	//}
-	//
-	//connect := func(network, add string) (net.Conn, error) {
-	//	return proxier.proxy(context.Background(), "10.96.0.1:443") // member集群ClusterIP地址
-	//}
-	//
-	//upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
-	//	TLSClientConfig: tlsConfig,
-	//	//Dial:            d.Dial,
-	//	Dial:  connect,
-	//	Proxy: config.Proxy,
-	//})
-
-	wrapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
-	if err != nil {
-		return nil, err
-	}
-	return proxy.NewUpgradeRequestRoundTripper(wrapper, upgradeRoundTripper), nil
-	//return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, wrapper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning
@@ -185,12 +130,12 @@ func Location(cluster *clusterapis.Cluster) (*url.URL, http.RoundTripper, error)
 		return nil, nil, err
 	}
 
-	transport, err := createProxyTransport(cluster)
+	proxyTransport, err := createProxyTransport(cluster)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return location, transport, nil
+	return location, proxyTransport, nil
 }
 
 func constructLocation(cluster *clusterapis.Cluster) (*url.URL, error) {
