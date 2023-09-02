@@ -13,7 +13,6 @@ import (
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
@@ -22,7 +21,6 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	registryrest "k8s.io/apiserver/pkg/registry/rest"
 	clientgorest "k8s.io/client-go/rest"
-	"k8s.io/client-go/transport"
 	"k8s.io/klog/v2"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
@@ -51,10 +49,10 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 	}
 	location.Path = path.Join(location.Path, proxyPath)
 
-	return newProxyHandlerNew(location, cluster, impersonateToken, responder)
+	return newProxyHandler(location, cluster, impersonateToken, responder)
 }
 
-func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
+func newProxyHandler(location *url.URL, cluster *clusterapis.Cluster,
 	impersonateToken string, responder registryrest.Responder) (http.Handler, error) {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
@@ -69,6 +67,10 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			}
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
+		for k, vs := range cluster.Spec.ProxyHeader {
+			req.Header.Set(k, vs)
+		}
+		klog.InfoS("req header", "req head", req.Header)
 
 		var proxyData *url.URL
 		if proxyURL := cluster.Spec.ProxyURL; proxyURL != "" {
@@ -189,43 +191,6 @@ func getImpersonateToken(clusterName string, secret *corev1.Secret) (string, err
 		return "", fmt.Errorf("the impresonate token of cluster %s is empty", clusterName)
 	}
 	return string(token), nil
-}
-
-func newProxyHandler(location *url.URL, proxyRT http.RoundTripper, impersonateToken string, responder registryrest.Responder) (http.Handler, error) {
-	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		requester, exist := request.UserFrom(req.Context())
-		if !exist {
-			responsewriters.InternalError(rw, req, errors.New("no user found for request"))
-			return
-		}
-		req.Header.Set(authenticationv1.ImpersonateUserHeader, requester.GetName())
-		for _, group := range requester.GetGroups() {
-			if !skipGroup(group) {
-				req.Header.Add(authenticationv1.ImpersonateGroupHeader, group)
-			}
-		}
-
-		upgrade := httpstream.IsUpgradeRequest(req)
-		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
-
-		// Retain RawQuery in location because upgrading the request will use it.
-		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
-		location.RawQuery = req.URL.RawQuery
-
-		proxyRoundTripper := transport.NewAuthProxyRoundTripper(requester.GetName(), requester.GetGroups(), requester.GetExtra(), proxyRT)
-
-		newReq := req.WithContext(req.Context())
-		newReq.Header = utilnet.CloneHeader(req.Header)
-		newReq.URL = location
-		newReq.Host = location.Host
-
-		if upgrade {
-			transport.SetAuthProxyHeaders(newReq, requester.GetName(), requester.GetGroups(), requester.GetExtra())
-		}
-
-		handler := NewThrottledUpgradeAwareProxyHandler(location, proxyRoundTripper, true, upgrade, responder)
-		handler.ServeHTTP(rw, newReq)
-	}), nil
 }
 
 func skipGroup(group string) bool {
