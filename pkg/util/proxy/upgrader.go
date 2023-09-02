@@ -133,7 +133,7 @@ func (rt *upgradeRequestRoundTripper) WrappedRoundTripper() http.RoundTripper {
 	return rt.RoundTripper
 }
 
-// WriteToRequest calls the nested upgrader and then copies the returned request
+// WrapRequest calls the nested upgrader and then copies the returned request
 // fields onto the passed request.
 func (rt *upgradeRequestRoundTripper) WrapRequest(req *http.Request) (*http.Request, error) {
 	resp, err := rt.upgrader.RoundTrip(req)

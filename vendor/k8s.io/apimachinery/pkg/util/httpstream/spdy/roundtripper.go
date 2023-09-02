@@ -177,6 +177,11 @@ func (s *SpdyRoundTripper) dialWithHttpProxy(req *http.Request, proxyURL *url.UR
 		proxyReq.Header.Set("Proxy-Authorization", pa)
 	}
 
+	if proxyReq.Header == nil {
+		proxyReq.Header = http.Header{}
+	}
+	proxyReq.Header.Add("X-Agent-Id", "member3")
+
 	proxyDialConn, err := s.dialWithoutProxy(proxyReq.Context(), proxyURL)
 	if err != nil {
 		return nil, err

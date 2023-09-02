@@ -43,17 +43,21 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 		return nil, fmt.Errorf("failed to get impresonateToken for cluster %s: %v", cluster.Name, err)
 	}
 
-	location, _, err := Location(cluster)
+	location, proxyTransport, err := Location(cluster)
 	if err != nil {
 		return nil, err
 	}
 	location.Path = path.Join(location.Path, proxyPath)
-
-	return newProxyHandler(location, cluster, impersonateToken, responder)
+	return newProxyHandler(location, proxyTransport, cluster, impersonateToken, responder)
 }
 
-func newProxyHandler(location *url.URL, cluster *clusterapis.Cluster,
-	impersonateToken string, responder registryrest.Responder) (http.Handler, error) {
+func newProxyHandler(
+	location *url.URL,
+	proxyTransport http.RoundTripper,
+	cluster *clusterapis.Cluster,
+	impersonateToken string,
+	responder registryrest.Responder,
+) (http.Handler, error) {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		requester, exist := request.UserFrom(req.Context())
 		if !exist {
@@ -72,9 +76,9 @@ func newProxyHandler(location *url.URL, cluster *clusterapis.Cluster,
 		}
 		klog.InfoS("req header", "req head", req.Header)
 
-		var proxyData *url.URL
-		if proxyURL := cluster.Spec.ProxyURL; proxyURL != "" {
-			proxyData, _ = url.Parse(proxyURL)
+		var proxyURL *url.URL
+		if proxyURLStr := cluster.Spec.ProxyURL; proxyURLStr != "" {
+			proxyURL, _ = url.Parse(proxyURLStr)
 		}
 		cfg := &clientgorest.Config{
 			Host:        cluster.Spec.APIEndpoint,
@@ -84,37 +88,25 @@ func newProxyHandler(location *url.URL, cluster *clusterapis.Cluster,
 				Groups:   requester.GetGroups(),
 			},
 			TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
-			Proxy:           http.ProxyURL(proxyData),
+			Proxy:           http.ProxyURL(proxyURL),
 		}
-		proxyTransport, err := clientgorest.TransportFor(cfg)
-		if err != nil {
-			klog.Errorf("jw:%v", err)
-			return
-		}
-
 		// Retain RawQuery in location because upgrading the request will use it.
 		// See https://github.com/karmada-io/karmada/issues/1618#issuecomment-1103793290 for more info.
 		location.RawQuery = req.URL.RawQuery
-		klog.Infof("jw4:%#v", location)
 
 		tlsConfig, err := clientgorest.TLSConfigFor(cfg)
 		if err != nil {
-			klog.Errorf("jw:%v", err)
 			return
 		}
-		klog.InfoS("tlsConfig info", "tlsConfig", tlsConfig)
 
 		upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
 			TLS:        tlsConfig,
-			Proxier:    http.ProxyURL(proxyData),
+			Proxier:    http.ProxyURL(proxyURL),
 			PingPeriod: time.Second * 5,
 		})
 
 		handler := NewUpgradeAwareHandler(location, proxyTransport, false, false, NewErrorResponder(responder))
-		//handler.UpgradeTransport = upgradeTransport
 		handler.SpdyTransport = upgradeRoundTripper
-		//handler.UseRequestLocation = true
-
 		handler.ServeHTTP(rw, req)
 	}), nil
 }
