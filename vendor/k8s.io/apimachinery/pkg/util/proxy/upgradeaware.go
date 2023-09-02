@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 
 	"github.com/mxk/go-flowrate/flowrate"
 	"k8s.io/klog/v2"
@@ -85,6 +86,8 @@ type UpgradeAwareHandler struct {
 	Responder ErrorResponder
 	// Reject to forward redirect response
 	RejectForwardingRedirects bool
+
+	SpdyTransport *spdy.SpdyRoundTripper
 }
 
 const defaultFlushInterval = 200 * time.Millisecond
@@ -337,7 +340,10 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		clone.Host = h.Location.Host
 	}
 	clone.URL = &location
-	backendConn, err = h.DialForUpgrade(clone)
+
+
+	//backendConn, err = h.DialForUpgrade(clone)
+	backendConn, err = h.SpdyTransport.Dial(clone)
 	if err != nil {
 		klog.V(6).Infof("Proxy connection error: %v", err)
 		h.Responder.Error(w, req, err)

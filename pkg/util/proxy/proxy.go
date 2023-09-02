@@ -5,11 +5,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -100,8 +102,22 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 		location.RawQuery = req.URL.RawQuery
 		klog.Infof("jw4:%#v", location)
 
+		tlsConfig, err := clientgorest.TLSConfigFor(cfg)
+		if err != nil {
+			klog.Errorf("jw:%v", err)
+			return
+		}
+		klog.InfoS("tlsConfig info", "tlsConfig", tlsConfig)
+
+		upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
+			TLS:        tlsConfig,
+			Proxier:    http.ProxyURL(proxyData),
+			PingPeriod: time.Second * 5,
+		})
+
 		handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
 		handler.UpgradeTransport = upgradeTransport
+		handler.SpdyTransport = upgradeRoundTripper
 		//handler.UseRequestLocation = true
 
 		handler.ServeHTTP(rw, req)
@@ -113,67 +129,46 @@ func makeUpgradeTransport(
 	proxyURL *url.URL,
 	locationHost string,
 ) (proxy.UpgradeRequestRoundTripper, error) {
-	//transportConfig, err := config.TransportConfig()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//tlsConfig, err := transport.TLSConfigFor(transportConfig)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//rt := utilnet.SetOldTransportDefaults(&http.Transport{
-	//	TLSClientConfig: tlsConfig,
-	//	DialContext: (&net.Dialer{
-	//		Timeout:   30 * time.Second,
-	//		KeepAlive: 30 * time.Second,
-	//	}).DialContext,
-	//	Proxy: config.Proxy,
-	//})
-	//
-	//upgrader, err := transport.HTTPWrappersForConfig(transportConfig, rt)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//return proxy.NewUpgradeRequestRoundTripper(rt, upgrader), nil
-
 	tlsConfig, err := clientgorest.TLSConfigFor(config)
 	if err != nil {
 		klog.Errorf("jw:%v", err)
 		return nil, err
 	}
 	klog.InfoS("tlsConfig info", "tlsConfig", tlsConfig)
-	//d, err := connectproxy.New(proxyURL, netproxy.Direct)
-	//if nil != err {
-	//	return nil, err
-	//}
 
-	dialer := net.Dialer{}
-	dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.Host)
-	if err != nil {
-		klog.Errorf("jw:%v", err)
-		return nil, err
-	}
-	proxier := &httpConnectProxier{
-		conn:         dialContext,
-		proxyAddress: proxyURL.Host,
-	}
-
-	connect := func(network, add string) (net.Conn, error) {
-		return proxier.proxy(context.Background(), "10.96.0.1:443") // member集群ClusterIP地址
-	}
-
-	upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
-		TLSClientConfig: tlsConfig,
-		//Dial:            d.Dial,
-		Dial:  connect,
-		Proxy: config.Proxy,
+	upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
+		TLS:        tlsConfig,
+		Proxier:    http.ProxyURL(proxyURL),
+		PingPeriod: time.Second * 5,
 	})
 
-	_, err = clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
+	//dialer := net.Dialer{}
+	//dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.Host)
+	//if err != nil {
+	//	klog.Errorf("jw:%v", err)
+	//	return nil, err
+	//}
+	//proxier := &httpConnectProxier{
+	//	conn:         dialContext,
+	//	proxyAddress: proxyURL.Host,
+	//}
+	//
+	//connect := func(network, add string) (net.Conn, error) {
+	//	return proxier.proxy(context.Background(), "10.96.0.1:443") // member集群ClusterIP地址
+	//}
+	//
+	//upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
+	//	TLSClientConfig: tlsConfig,
+	//	//Dial:            d.Dial,
+	//	Dial:  connect,
+	//	Proxy: config.Proxy,
+	//})
+
+	wrapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
 	if err != nil {
 		return nil, err
 	}
-	return proxy.NewUpgradeRequestRoundTripper(nil, upgradeRoundTripper), nil
+	return proxy.NewUpgradeRequestRoundTripper(wrapper, upgradeRoundTripper), nil
 	//return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, wrapper), nil
 }
 
