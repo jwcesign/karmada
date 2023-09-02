@@ -345,8 +345,6 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 	}
 	defer backendConn.Close()
 
-
-
 	// determine the http response code from the backend by reading from rawResponse+backendConn
 	backendHTTPResponse, headerBytes, err := getResponse(io.MultiReader(bytes.NewReader(rawResponse), backendConn))
 	if err != nil {
@@ -416,12 +414,12 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 	writerComplete := make(chan struct{})
 	readerComplete := make(chan struct{})
 
-	go func() {
+	go func() { // 从 kubectl 到 aa
 		var writer io.WriteCloser
 		if h.MaxBytesPerSec > 0 {
 			writer = flowrate.NewWriter(backendConn, h.MaxBytesPerSec)
 		} else {
-			writer = backendConn
+			writer = backendConn // backendConn指aa 到 proxyServer的链接
 		}
 		_, err := io.Copy(writer, requestHijackedConn)
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
@@ -430,12 +428,12 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		close(writerComplete)
 	}()
 
-	go func() {
+	go func() { // 从 aa 到 kubectl
 		var reader io.ReadCloser
 		if h.MaxBytesPerSec > 0 {
 			reader = flowrate.NewReader(backendConn, h.MaxBytesPerSec)
 		} else {
-			reader = backendConn
+			reader = backendConn // backendConn指aa 到 proxyServer的链接
 		}
 		_, err := io.Copy(requestHijackedConn, reader)
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
