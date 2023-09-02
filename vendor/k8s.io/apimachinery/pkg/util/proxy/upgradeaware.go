@@ -345,6 +345,8 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 	}
 	defer backendConn.Close()
 
+
+
 	// determine the http response code from the backend by reading from rawResponse+backendConn
 	backendHTTPResponse, headerBytes, err := getResponse(io.MultiReader(bytes.NewReader(rawResponse), backendConn))
 	if err != nil {
@@ -469,10 +471,16 @@ func singleJoiningSlash(a, b string) string {
 
 func (h *UpgradeAwareHandler) DialForUpgrade(req *http.Request) (net.Conn, error) {
 	if h.UpgradeTransport == nil {
+		klog.InfoS("[DialForUpgrade in]", "req host", req.Host, "req url", req.URL)
+
 		return dial(req, h.Transport)
 	}
+
+	klog.InfoS("[DialForUpgrade out]", "req host", req.Host, "req url", req.URL)
+
 	updatedReq, err := h.UpgradeTransport.WrapRequest(req)
 	if err != nil {
+		klog.Errorf("[DialForUpgrade] err: %v", err)
 		return nil, err
 	}
 	return dial(updatedReq, h.UpgradeTransport)
@@ -495,11 +503,13 @@ func getResponse(r io.Reader) (*http.Response, []byte, error) {
 func dial(req *http.Request, transport http.RoundTripper) (net.Conn, error) {
 	conn, err := dialURL(req.Context(), req.URL, transport)
 	if err != nil {
+		klog.Errorf("[dial] err: %v", err)
 		return nil, fmt.Errorf("error dialing backend: %v", err)
 	}
 
 	if err = req.Write(conn); err != nil {
 		conn.Close()
+		klog.Errorf("[dial] err: %v", err)
 		return nil, fmt.Errorf("error sending request: %v", err)
 	}
 

@@ -83,12 +83,13 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 			TLSClientConfig: clientgorest.TLSClientConfig{Insecure: true},
 			Proxy:           http.ProxyURL(proxyData),
 		}
-		transport, err := clientgorest.TransportFor(cfg)
+		proxyTransport, err := clientgorest.TransportFor(cfg)
 		if err != nil {
 			klog.Errorf("jw:%v", err)
 			return
 		}
-		upgradeTransport, err := makeUpgradeTransport(cfg, proxyData)
+
+		upgradeTransport, err := makeUpgradeTransport(cfg, proxyData, location.Host)
 		if err != nil {
 			klog.Errorf("jw:%v", err)
 			return
@@ -99,15 +100,19 @@ func newProxyHandlerNew(location *url.URL, cluster *clusterapis.Cluster,
 		location.RawQuery = req.URL.RawQuery
 		klog.Infof("jw4:%#v", location)
 
-		handler := proxy.NewUpgradeAwareHandler(location, transport, false, false, proxy.NewErrorResponder(responder))
+		handler := proxy.NewUpgradeAwareHandler(location, proxyTransport, false, false, proxy.NewErrorResponder(responder))
 		handler.UpgradeTransport = upgradeTransport
-		handler.UseRequestLocation = true
+		//handler.UseRequestLocation = true
 
 		handler.ServeHTTP(rw, req)
 	}), nil
 }
 
-func makeUpgradeTransport(config *clientgorest.Config, proxyURL *url.URL) (proxy.UpgradeRequestRoundTripper, error) {
+func makeUpgradeTransport(
+	config *clientgorest.Config,
+	proxyURL *url.URL,
+	locationHost string,
+) (proxy.UpgradeRequestRoundTripper, error) {
 	//transportConfig, err := config.TransportConfig()
 	//if err != nil {
 	//	return nil, err
@@ -133,44 +138,43 @@ func makeUpgradeTransport(config *clientgorest.Config, proxyURL *url.URL) (proxy
 
 	tlsConfig, err := clientgorest.TLSConfigFor(config)
 	if err != nil {
+		klog.Errorf("jw:%v", err)
 		return nil, err
 	}
-
+	klog.InfoS("tlsConfig info", "tlsConfig", tlsConfig)
 	//d, err := connectproxy.New(proxyURL, netproxy.Direct)
 	//if nil != err {
 	//	return nil, err
 	//}
 
-	dialer := tls.Dialer{}
-	dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.String())
+	dialer := net.Dialer{}
+	dialContext, err := dialer.DialContext(context.Background(), "tcp", proxyURL.Host)
 	if err != nil {
+		klog.Errorf("jw:%v", err)
 		return nil, err
 	}
 	proxier := &httpConnectProxier{
 		conn:         dialContext,
-		proxyAddress: proxyURL.String(),
+		proxyAddress: proxyURL.Host,
 	}
-	//conn, err := proxier.proxy(context.Background(), proxyURL.String())
-	//if err != nil {
-	//	return nil, err
-	//}
 
-	dial := func(network, add string) (net.Conn, error) {
-		return proxier.proxy(context.Background(), proxyURL.String())
+	connect := func(network, add string) (net.Conn, error) {
+		return proxier.proxy(context.Background(), "10.96.0.1:443") // member集群ClusterIP地址
 	}
 
 	upgradeRoundTripper := utilnet.SetOldTransportDefaults(&http.Transport{
 		TLSClientConfig: tlsConfig,
 		//Dial:            d.Dial,
-		Dial:  dial,
+		Dial:  connect,
 		Proxy: config.Proxy,
 	})
 
-	wapper, err := clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
+	_, err = clientgorest.HTTPWrappersForConfig(config, upgradeRoundTripper)
 	if err != nil {
 		return nil, err
 	}
-	return proxy.NewUpgradeRequestRoundTripper(wapper, upgradeRoundTripper), nil
+	return proxy.NewUpgradeRequestRoundTripper(nil, upgradeRoundTripper), nil
+	//return proxy.NewUpgradeRequestRoundTripper(upgradeRoundTripper, wrapper), nil
 }
 
 // NewThrottledUpgradeAwareProxyHandler creates a new proxy handler with a default flush interval. Responder is required for returning

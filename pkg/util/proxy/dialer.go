@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+
+	"k8s.io/klog/v2"
 )
 
 type httpConnectProxier struct {
@@ -18,8 +20,16 @@ func (t *httpConnectProxier) proxy(ctx context.Context, addr string) (net.Conn, 
 }
 
 func tunnelHTTPConnect(proxyConn net.Conn, proxyAddress, addr string) (net.Conn, error) {
-	fmt.Fprintf(proxyConn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, "127.0.0.1")
+	//fmt.Fprintf(proxyConn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, "127.0.0.1")
+	fmt.Fprintf(proxyConn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+	klog.Infof("[debug] proxyAddress: %s, add: %s", proxyAddress, addr)
 	br := bufio.NewReader(proxyConn)
+
+	//klog.InfoS("[debug] return info", "br", br.Read())
+
+	//tmp := &bytes.Buffer{}
+	//br.Read(tmp)
+
 	res, err := http.ReadResponse(br, nil)
 	if err != nil {
 		proxyConn.Close()
@@ -41,5 +51,8 @@ func tunnelHTTPConnect(proxyConn net.Conn, proxyAddress, addr string) (net.Conn,
 		return nil, fmt.Errorf("unexpected %d bytes of buffered data from CONNECT proxy %q",
 			br.Buffered(), proxyAddress)
 	}
+
+	klog.InfoS("[debug] i am in the end")
+
 	return proxyConn, nil
 }
