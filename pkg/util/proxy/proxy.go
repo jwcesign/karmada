@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
@@ -21,14 +22,15 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	registryrest "k8s.io/apiserver/pkg/registry/rest"
 	clientgorest "k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
-
-	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 )
 
 // ConnectCluster returns a handler for proxy cluster.
-func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath string,
-	secretGetter func(context.Context, string, string) (*corev1.Secret, error), responder registryrest.Responder) (http.Handler, error) {
+func ConnectCluster(
+	ctx context.Context,
+	cluster *clusterapis.Cluster, proxyPath string,
+	secretGetter func(context.Context, string, string) (*corev1.Secret, error),
+	responder registryrest.Responder,
+) (http.Handler, error) {
 	if cluster.Spec.ImpersonatorSecretRef == nil {
 		return nil, fmt.Errorf("the impersonatorSecretRef of cluster %s is nil", cluster.Name)
 	}
@@ -71,10 +73,10 @@ func newProxyHandler(
 			}
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
-		for k, vs := range cluster.Spec.ProxyHeader {
-			req.Header.Set(k, vs)
-		}
-		klog.InfoS("req header", "req head", req.Header)
+		//for k, vs := range cluster.Spec.ProxyHeader {
+		//	req.Header.Set(k, vs)
+		//}
+		//klog.InfoS("req header", "req head", req.Header)
 
 		var proxyURL *url.URL
 		if proxyURLStr := cluster.Spec.ProxyURL; proxyURLStr != "" {
