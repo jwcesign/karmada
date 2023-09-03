@@ -59,10 +59,8 @@ func NewNewUpgradeDialerWithConfig(cfg UpgradeDialerWithConfig) *UpgradeDialer {
 type UpgradeDialerWithConfig struct {
 	// TLS configuration used by the round tripper.
 	TLS *tls.Config
-
 	// Header holds the HTTP request headers for dialing. Optional.
 	Header http.Header
-
 	// Proxier is a proxy function invoked on each request. Optional.
 	Proxier func(*http.Request) (*url.URL, error)
 	// PingPeriod is a period for sending Pings on the connection.
@@ -128,7 +126,6 @@ func (u *UpgradeDialer) dialWithHttpProxy(req *http.Request, proxyURL *url.URL) 
 	proxyReq = *proxyReq.WithContext(req.Context())
 
 	if pa := u.proxyAuth(proxyURL); pa != "" {
-		proxyReq.Header = http.Header{}
 		proxyReq.Header.Set("Proxy-Authorization", pa)
 	}
 
