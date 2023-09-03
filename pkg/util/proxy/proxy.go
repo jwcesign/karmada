@@ -14,7 +14,6 @@ import (
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -73,10 +72,6 @@ func newProxyHandler(
 			}
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", impersonateToken))
-		//for k, vs := range cluster.Spec.ProxyHeader {
-		//	req.Header.Set(k, vs)
-		//}
-		//klog.InfoS("req header", "req head", req.Header)
 
 		var proxyURL *url.URL
 		if proxyURLStr := cluster.Spec.ProxyURL; proxyURLStr != "" {
@@ -101,10 +96,16 @@ func newProxyHandler(
 			return
 		}
 
-		upgradeRoundTripper := spdy.NewRoundTripperWithConfig(spdy.RoundTripperConfig{
+		header := map[string][]string{}
+		for k, vs := range cluster.Spec.ProxyHeader {
+			v := strings.Split(vs, ",")
+			header[k] = v
+		}
+		upgradeRoundTripper := NewNewUpgradeDialerWithConfig(UpgradeDialerWithConfig{
 			TLS:        tlsConfig,
 			Proxier:    http.ProxyURL(proxyURL),
 			PingPeriod: time.Second * 5,
+			Header:     header,
 		})
 
 		handler := NewUpgradeAwareHandler(location, proxyTransport, false, false, NewErrorResponder(responder))

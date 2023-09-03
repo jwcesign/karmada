@@ -33,7 +33,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	proxytransport "k8s.io/apimachinery/pkg/util/proxy"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -88,7 +87,7 @@ type UpgradeAwareHandler struct {
 	// Reject to forward redirect response
 	RejectForwardingRedirects bool
 
-	SpdyTransport *spdy.SpdyRoundTripper
+	SpdyTransport *UpgradeDialer
 }
 
 const defaultFlushInterval = 200 * time.Millisecond
