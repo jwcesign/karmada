@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +28,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 )
 
 // ErrMatchFunc can be used to filter errors that may not be true failures.
@@ -119,6 +120,7 @@ func (r *Result) Infos() ([]*Info, error) {
 	}
 
 	infos := []*Info{}
+	klog.Info("jw1001")
 	err := r.visitor.Visit(func(info *Info, err error) error {
 		if err != nil {
 			return err
@@ -126,6 +128,7 @@ func (r *Result) Infos() ([]*Info, error) {
 		infos = append(infos, info)
 		return nil
 	})
+	klog.Info("jw1002")
 	err = utilerrors.FilterOut(err, r.ignoreErrors...)
 
 	r.info, r.err = infos, err

@@ -79,6 +79,7 @@ func (d *CachedDiscoveryClient) ServerResourcesForGroupVersion(groupVersion stri
 		}
 	}
 
+	klog.Info("jw9")
 	liveResources, err := d.delegate.ServerResourcesForGroupVersion(groupVersion)
 	if err != nil {
 		klog.V(3).Infof("skipped caching discovery info due to %v", err)

@@ -100,6 +100,7 @@ func isTransientError(err error) bool {
 func (d *memCacheClient) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
+	klog.Info("jw5")
 	if !d.cacheValid {
 		if err := d.refreshLocked(); err != nil {
 			return nil, err
@@ -140,6 +141,7 @@ func (d *memCacheClient) GroupsAndMaybeResources() (*metav1.APIGroupList, map[sc
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
+	klog.Info("jw4")
 	if !d.cacheValid {
 		if err := d.refreshLocked(); err != nil {
 			return nil, nil, nil, err
@@ -239,6 +241,7 @@ func (d *memCacheClient) refreshLocked() error {
 	var gl *metav1.APIGroupList
 	var err error
 
+	klog.Info("jw13")
 	if ad, ok := d.delegate.(discovery.AggregatedDiscoveryInterface); ok {
 		var resources map[schema.GroupVersion]*metav1.APIResourceList
 		var failedGVs map[schema.GroupVersion]error

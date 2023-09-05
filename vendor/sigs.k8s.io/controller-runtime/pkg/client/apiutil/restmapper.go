@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+	"k8s.io/klog/v2"
 )
 
 // NewDynamicRESTMapper returns a dynamic RESTMapper for cfg. The dynamic
@@ -115,6 +116,7 @@ func (m *mapper) ResourcesFor(input schema.GroupVersionResource) ([]schema.Group
 // RESTMapping implements Mapper.RESTMapping.
 func (m *mapper) RESTMapping(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
 	res, err := m.getMapper().RESTMapping(gk, versions...)
+	klog.Info("jw7")
 	if meta.IsNoMatchError(err) {
 		if err := m.addKnownGroupAndReload(gk.Group, versions...); err != nil {
 			return nil, err
@@ -266,6 +268,7 @@ func (m *mapper) fetchGroupVersionResources(groupName string, versions ...string
 	groupVersionResources := make(map[schema.GroupVersion]*metav1.APIResourceList)
 	failedGroups := make(map[schema.GroupVersion]error)
 
+	klog.Info("jw10")
 	for _, version := range versions {
 		groupVersion := schema.GroupVersion{Group: groupName, Version: version}
 

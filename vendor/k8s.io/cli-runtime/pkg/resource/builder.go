@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
@@ -1157,10 +1158,12 @@ func (b *Builder) visitByPaths() *Result {
 // for further iteration.
 func (b *Builder) Do() *Result {
 	r := b.visitorResult()
+	klog.Info("jw91")
 	r.mapper = b.Mapper()
 	if r.err != nil {
 		return r
 	}
+	klog.Info("jw92")
 	if b.flatten {
 		r.visitor = NewFlattenListVisitor(r.visitor, b.objectTyper, b.mapper)
 	}
@@ -1178,7 +1181,9 @@ func (b *Builder) Do() *Result {
 	if b.continueOnError {
 		r.visitor = ContinueOnErrorVisitor{Visitor: r.visitor}
 	}
+	klog.Infof("jw3: %v", r.visitor)
 	r.visitor = NewDecoratedVisitor(r.visitor, helpers...)
+	klog.Info("jw93")
 	return r
 }
 

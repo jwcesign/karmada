@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/klog/v2"
 	kubectlapply "k8s.io/kubectl/pkg/cmd/apply"
 	"k8s.io/kubectl/pkg/util/templates"
 
@@ -150,13 +151,15 @@ func (o *CommandApplyOptions) Run() error {
 		return err
 	}
 
-	return o.kubectlApplyOptions.Run()
+	return nil
+	// return o.kubectlApplyOptions.Run()
 }
 
 // generateAndInjectPolices generates and injects policies to the given resources.
 // It returns an error if any of the policies cannot be generated.
 func (o *CommandApplyOptions) generateAndInjectPolices() error {
 	// load the resources
+	klog.Infof("jw21:%#v", *o.kubectlApplyOptions)
 	infos, err := o.kubectlApplyOptions.GetObjects()
 	if err != nil {
 		return err
@@ -164,28 +167,29 @@ func (o *CommandApplyOptions) generateAndInjectPolices() error {
 
 	// generate policies and append them to the resources
 	var results []*resource.Info
-	for _, info := range infos {
-		results = append(results, info)
-		obj := o.generatePropagationObject(info)
-		gvk := obj.GetObjectKind().GroupVersionKind()
-		mapping, err := o.kubectlApplyOptions.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-		if err != nil {
-			return fmt.Errorf("unable to recognize resource: %v", err)
-		}
-		client, err := o.UtilFactory.UnstructuredClientForMapping(mapping)
-		if err != nil {
-			return fmt.Errorf("unable to connect to a server to handle %q: %v", mapping.Resource, err)
-		}
-		policyName, _ := metadataAccessor.Name(obj)
-		ret := &resource.Info{
-			Namespace: info.Namespace,
-			Name:      policyName,
-			Object:    obj,
-			Mapping:   mapping,
-			Client:    client,
-		}
-		results = append(results, ret)
-	}
+	results = append(results, infos...)
+	//for _, info := range infos {
+	//	results = append(results, info)
+	//	obj := o.generatePropagationObject(info)
+	//	gvk := obj.GetObjectKind().GroupVersionKind()
+	//	mapping, err := o.kubectlApplyOptions.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	//	if err != nil {
+	//		return fmt.Errorf("unable to recognize resource: %v", err)
+	//	}
+	//	client, err := o.UtilFactory.UnstructuredClientForMapping(mapping)
+	//	if err != nil {
+	//		return fmt.Errorf("unable to connect to a server to handle %q: %v", mapping.Resource, err)
+	//	}
+	//	policyName, _ := metadataAccessor.Name(obj)
+	//	ret := &resource.Info{
+	//		Namespace: info.Namespace,
+	//		Name:      policyName,
+	//		Object:    obj,
+	//		Mapping:   mapping,
+	//		Client:    client,
+	//	}
+	//	results = append(results, ret)
+	//}
 
 	// store the results object to be sequentially applied
 	o.kubectlApplyOptions.SetObjects(results)

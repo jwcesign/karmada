@@ -24,12 +24,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
+	"k8s.io/klog/v2"
 )
 
 // IsResourceEnabled queries the server to determine if the resource specified is present on the server.
 // This is particularly helpful when writing a controller or an e2e test that requires a particular resource to function.
 func IsResourceEnabled(client DiscoveryInterface, resourceToCheck schema.GroupVersionResource) (bool, error) {
 	// this is a single request.  The ServerResourcesForGroupVersion handles the core v1 group as legacy.
+	klog.Info("jw8")
 	resourceList, err := client.ServerResourcesForGroupVersion(resourceToCheck.GroupVersion().String())
 	if apierrors.IsNotFound(err) { // if the discovery endpoint isn't present, then the resource isn't present.
 		return false, nil

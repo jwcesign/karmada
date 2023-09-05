@@ -39,6 +39,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -250,6 +251,7 @@ func (v *URLVisitor) Visit(fn VisitorFunc) error {
 	if err != nil {
 		return err
 	}
+	klog.Info("jw1011")
 	defer body.Close()
 	v.StreamVisitor.Reader = body
 	return v.StreamVisitor.Visit(fn)

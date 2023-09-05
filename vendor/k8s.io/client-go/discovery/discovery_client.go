@@ -43,6 +43,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/openapi"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -559,6 +560,7 @@ func fetchGroupVersionResources(d DiscoveryInterface, apiGroups *metav1.APIGroup
 	groupVersionResources := make(map[schema.GroupVersion]*metav1.APIResourceList)
 	failedGroups := make(map[schema.GroupVersion]error)
 
+	klog.Info("jw11")
 	wg := &sync.WaitGroup{}
 	resultLock := &sync.Mutex{}
 	for _, apiGroup := range apiGroups.Groups {
