@@ -73,6 +73,11 @@ func (c *ResourceBindingController) Reconcile(ctx context.Context, req controlle
 		return c.removeFinalizer(binding)
 	}
 
+	if util.GetLabelValue(binding.GetLabels(), workv1alpha2.ResourceBindingIDLabel) == "" {
+		// It couldn't happen because we add the id when we create the ResourceBinding.
+		return controllerruntime.Result{}, nil
+	}
+
 	return c.syncBinding(binding)
 }
 

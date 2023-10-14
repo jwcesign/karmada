@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/google/uuid"
 	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
 	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
 	"github.com/karmada-io/karmada/pkg/util"
@@ -57,8 +58,12 @@ func CreateOrUpdateWork(client client.Client, workMeta metav1.ObjectMeta, resour
 			if !runtimeObject.DeletionTimestamp.IsZero() {
 				return fmt.Errorf("work %s/%s is being deleted", runtimeObject.GetNamespace(), runtimeObject.GetName())
 			}
+			workID := util.GetLabelValue(runtimeObject.GetLabels(), workv1alpha2.WorkIDLabel)
+			if workID == "" {
+				workID = uuid.New().String()
+				runtimeObject.Labels = util.DedupeAndMergeLabels(work.Labels, map[string]string{workv1alpha2.WorkIDLabel: workID})
+			}
 			runtimeObject.Spec = work.Spec
-			runtimeObject.Labels = work.Labels
 			runtimeObject.Annotations = work.Annotations
 			return nil
 		})
@@ -92,19 +97,21 @@ func GetWorksByLabelsSet(c client.Client, ls labels.Set) (*workv1alpha1.WorkList
 }
 
 // GetWorkListByBindingUID get WorkList by matching the binding UID label.
-func GetWorkListByBindingUID(c client.Client, bindingMeta *metav1.ObjectMeta) (*workv1alpha1.WorkList, error) {
+func GetWorkListByBindingID(c client.Client, bindingMeta *metav1.ObjectMeta) (*workv1alpha1.WorkList, error) {
+	retWorkList := &workv1alpha1.WorkList{}
 	var ls labels.Set
 	if bindingMeta.Namespace != "" {
-		ls = labels.Set{workv1alpha2.ResourceBindingUIDLabel: string(bindingMeta.UID)}
+		bindingID := util.GetLabelValue(bindingMeta.Labels, workv1alpha2.ResourceBindingIDLabel)
+		ls = labels.Set{workv1alpha2.ResourceBindingIDLabel: bindingID}
 	} else {
-		ls = labels.Set{workv1alpha2.ClusterResourceBindingUIDLabel: string(bindingMeta.UID)}
+		bindingID := util.GetLabelValue(bindingMeta.Labels, workv1alpha2.ClusterResourceBindingAnnotationKey)
+		ls = labels.Set{workv1alpha2.ClusterResourceBindingIDLabel: bindingID}
 	}
 	workList, err := GetWorksByLabelsSet(c, ls)
 	if err != nil {
 		return nil, err
 	}
 
-	retWorkList := &workv1alpha1.WorkList{}
 	// Due to the hash collision problem, we have to filter the Works by annotation.
 	// More details please refer to https://github.com/karmada-io/karmada/issues/2071.
 	for i := range workList.Items {

@@ -826,9 +826,9 @@ func TestWorkStatusController_recreateResourceIfNeeded(t *testing.T) {
 		RateLimiterOptions:          ratelimiterflag.Options{},
 	}
 
-	workUID := "92345678-1234-5678-1234-567812345678"
+	workID := "92345678-1234-5678-1234-567812345678"
 	raw := []byte(`{"apiVersion":"v1","kind":"Pod","metadata":{"name":"pod","namespace":"default"}}`)
-	work := testhelper.NewWork("work", "default", workUID, raw)
+	work := testhelper.NewWork("work", "default", workID, raw)
 
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -838,7 +838,7 @@ func TestWorkStatusController_recreateResourceIfNeeded(t *testing.T) {
 				"name":      "pod1",
 				"namespace": "default",
 				"labels": map[string]interface{}{
-					workv1alpha2.WorkUIDLabel: workUID,
+					workv1alpha2.WorkIDLabel: workID,
 				},
 				"annotations": map[string]interface{}{
 					workv1alpha2.WorkNamespaceAnnotationKey: "karmada-es-cluster",

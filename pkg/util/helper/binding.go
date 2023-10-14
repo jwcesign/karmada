@@ -169,7 +169,7 @@ func ObtainBindingSpecExistingClusters(bindingSpec workv1alpha2.ResourceBindingS
 // then pick the works that not meet current binding declaration.
 func FindOrphanWorks(c client.Client, bindingMeta *metav1.ObjectMeta, expectClusters sets.Set[string]) ([]workv1alpha1.Work, error) {
 	var needJudgeWorks []workv1alpha1.Work
-	workList, err := GetWorkListByBindingUID(c, bindingMeta)
+	workList, err := GetWorkListByBindingID(c, bindingMeta)
 	if err != nil {
 		klog.Errorf("Failed to get works by binding object (%s/%s): %v", bindingMeta.Namespace, bindingMeta.Name, err)
 		return nil, err
@@ -329,7 +329,7 @@ func DeleteWorkByClusterResourceBinding(c client.Client, bindingMeta *metav1.Obj
 
 // DeleteWorks will delete all Work objects by labels.
 func DeleteWorks(c client.Client, bindingMeta *metav1.ObjectMeta) error {
-	workList, err := GetWorkListByBindingUID(c, bindingMeta)
+	workList, err := GetWorkListByBindingID(c, bindingMeta)
 	if err != nil {
 		klog.Errorf("Failed to get works by Binding(%s/%s) : %v", bindingMeta.Namespace, bindingMeta.Name, err)
 		return err

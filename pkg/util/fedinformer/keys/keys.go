@@ -26,8 +26,8 @@ type ClusterWideKey struct {
 	// Name is the name of resource being referenced.
 	Name string
 
-	// UID is the uid of the resource being referenced.
-	UID string
+	// ID is the id of the resource being referenced.
+	ID string
 }
 
 // String returns the key's printable info with format:
@@ -94,7 +94,6 @@ func ClusterWideKeyFunc(obj interface{}) (ClusterWideKey, error) {
 	key.Kind = gvk.Kind
 	key.Namespace = metaInfo.GetNamespace()
 	key.Name = metaInfo.GetName()
-	key.UID = string(metaInfo.GetUID())
 
 	return key, nil
 }

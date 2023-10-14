@@ -233,7 +233,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 							return true
 						}
 
-						_, exist := deployment.Labels[policyv1alpha1.ClusterPropagationPolicyUIDLabel]
+						_, exist := deployment.Labels[policyv1alpha1.ClusterPropagationPolicyIDLabel]
 						return !exist
 					})
 			})
@@ -318,7 +318,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 							return true
 						}
 
-						_, exist := clusterRole.Labels[policyv1alpha1.ClusterPropagationPolicyUIDLabel]
+						_, exist := clusterRole.Labels[policyv1alpha1.ClusterPropagationPolicyIDLabel]
 						return !exist
 					})
 			})
@@ -329,7 +329,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 
 		ginkgo.When("namespace scope resource", func() {
 			var policy *policyv1alpha1.ClusterPropagationPolicy
-			var policyUID string
+			var policyID string
 			var deployment *appsv1.Deployment
 			var targetMember, updatedMember string
 
@@ -360,11 +360,11 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 					framework.RemoveDeployment(kubeClient, deployment.Namespace, deployment.Name)
 				})
 
-				policyUID = framework.GetClusterPropagationPolicyUID(karmadaClient, policy.Name)
+				policyID = framework.GetClusterPropagationPolicyID(karmadaClient, policy.Name)
 				gomega.Eventually(func() bool {
 					bindings, err := karmadaClient.WorkV1alpha2().ResourceBindings(testNamespace).List(context.TODO(), metav1.ListOptions{
 						LabelSelector: labels.SelectorFromSet(labels.Set{
-							policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
+							policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
 						}).String(),
 					})
 					if err != nil {
@@ -386,7 +386,7 @@ var _ = ginkgo.Describe("[AdvancedClusterPropagation] propagation testing", func
 				gomega.Eventually(func() bool {
 					bindings, err := karmadaClient.WorkV1alpha2().ResourceBindings(testNamespace).List(context.TODO(), metav1.ListOptions{
 						LabelSelector: labels.SelectorFromSet(labels.Set{
-							policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
+							policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
 						}).String(),
 					})
 					if err != nil {

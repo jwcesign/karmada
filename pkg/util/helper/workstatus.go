@@ -47,7 +47,7 @@ func AggregateResourceBindingWorkStatus(
 ) error {
 	binding.GetName()
 
-	workList, err := GetWorkListByBindingUID(c, &binding.ObjectMeta)
+	workList, err := GetWorkListByBindingID(c, &binding.ObjectMeta)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func AggregateClusterResourceBindingWorkStatus(
 	resourceTemplate *unstructured.Unstructured,
 	eventRecorder record.EventRecorder,
 ) error {
-	workList, err := GetWorkListByBindingUID(c, &binding.ObjectMeta)
+	workList, err := GetWorkListByBindingID(c, &binding.ObjectMeta)
 	if err != nil {
 		return err
 	}

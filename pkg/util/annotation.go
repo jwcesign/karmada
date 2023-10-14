@@ -109,3 +109,16 @@ func DedupeAndMergeAnnotations(existAnnotation, newAnnotation map[string]string)
 	}
 	return existAnnotation
 }
+
+// RemoveAnnotations removes the annotations from the given object.
+func RemoveAnnotations(obj *unstructured.Unstructured, annotationKeys ...string) {
+	if len(annotationKeys) == 0 {
+		return
+	}
+
+	objAnnotations := obj.GetAnnotations()
+	for _, labelKey := range annotationKeys {
+		delete(objAnnotations, labelKey)
+	}
+	obj.SetLabels(objAnnotations)
+}

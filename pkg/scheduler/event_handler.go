@@ -91,8 +91,8 @@ func (s *Scheduler) resourceBindingEventFilter(obj interface{}) bool {
 		}
 	}
 
-	matchKeyExist := util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.PropagationPolicyUIDLabel) != "" ||
-		util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.ClusterPropagationPolicyUIDLabel) != ""
+	matchKeyExist := util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.PropagationPolicyIDLabel) != "" ||
+		util.GetLabelValue(accessor.GetLabels(), policyv1alpha1.ClusterPropagationPolicyIDLabel) != ""
 	return matchKeyExist
 }
 

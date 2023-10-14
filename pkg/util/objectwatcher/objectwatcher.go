@@ -266,7 +266,9 @@ func (o *objectWatcherImpl) NeedsUpdate(clusterName string, desiredObj, clusterO
 
 func (o *objectWatcherImpl) allowUpdate(clusterName string, desiredObj, clusterObj *unstructured.Unstructured) bool {
 	// If the existing resource is managed by Karmada, then the updating is allowed.
-	if util.GetLabelValue(desiredObj.GetLabels(), workv1alpha2.WorkUIDLabel) == util.GetLabelValue(clusterObj.GetLabels(), workv1alpha2.WorkUIDLabel) {
+	desiredWorkID := util.GetLabelValue(desiredObj.GetLabels(), workv1alpha2.WorkIDLabel)
+	actualWorkID := util.GetLabelValue(clusterObj.GetLabels(), workv1alpha2.WorkIDLabel)
+	if desiredWorkID != "" && desiredWorkID == actualWorkID {
 		return true
 	}
 

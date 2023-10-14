@@ -7,7 +7,6 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 
 	policyv1alpha1 "github.com/karmada-io/karmada/pkg/apis/policy/v1alpha1"
 	workv1alpha2 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha2"
@@ -87,7 +86,7 @@ func Test_mergeTargetClusters(t *testing.T) {
 func Test_mergeLabel(t *testing.T) {
 	namespace := "fake-ns"
 	bindingName := "fake-bindingName"
-	rbUID := "93162d3c-ee8e-4995-9034-05f4d5d2c2b9"
+	rbID := "93162d3c-ee8e-4995-9034-05f4d5d2c2b9"
 
 	tests := []struct {
 		name          string
@@ -114,12 +113,14 @@ func Test_mergeLabel(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      bindingName,
 					Namespace: namespace,
-					UID:       types.UID(rbUID),
+					Labels: map[string]string{
+						workv1alpha2.ResourceBindingIDLabel: rbID,
+					},
 				},
 			},
 			scope: v1.NamespaceScoped,
 			want: map[string]string{
-				workv1alpha2.ResourceBindingUIDLabel: rbUID,
+				workv1alpha2.ResourceBindingIDLabel: rbID,
 			},
 		},
 		{
@@ -136,12 +137,14 @@ func Test_mergeLabel(t *testing.T) {
 			binding: &workv1alpha2.ClusterResourceBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: bindingName,
-					UID:  types.UID(rbUID),
+					Labels: map[string]string{
+						workv1alpha2.ResourceBindingIDLabel: rbID,
+					},
 				},
 			},
 			scope: v1.ClusterScoped,
 			want: map[string]string{
-				workv1alpha2.ClusterResourceBindingUIDLabel: rbUID,
+				workv1alpha2.ClusterResourceBindingIDLabel: rbID,
 			},
 		},
 	}

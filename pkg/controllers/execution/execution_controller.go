@@ -78,6 +78,11 @@ func (c *Controller) Reconcile(ctx context.Context, req controllerruntime.Reques
 		return controllerruntime.Result{Requeue: true}, err
 	}
 
+	if util.GetLabelValue(work.Labels, workv1alpha2.WorkIDLabel) == "" {
+		// It could't happen because we add the label when we create the work.
+		return controllerruntime.Result{}, nil
+	}
+
 	if !work.DeletionTimestamp.IsZero() {
 		// Abort deleting workload if cluster is unready when unjoining cluster, otherwise the unjoin process will be failed.
 		if util.IsClusterReady(&cluster.Status) {
@@ -153,8 +158,9 @@ func (c *Controller) tryDeleteWorkload(clusterName string, work *workv1alpha1.Wo
 			return err
 		}
 
+		workID := util.GetLabelValue(work.GetLabels(), workv1alpha2.WorkIDLabel)
 		// Avoid deleting resources that not managed by karmada.
-		if util.GetLabelValue(clusterObj.GetLabels(), workv1alpha2.WorkUIDLabel) != string(work.GetUID()) {
+		if util.GetLabelValue(clusterObj.GetLabels(), workv1alpha2.WorkIDLabel) != workID {
 			klog.Infof("Abort deleting the resource(kind=%s, %s/%s) exists in cluster %v but not managed by karmada", clusterObj.GetKind(), clusterObj.GetNamespace(), clusterObj.GetName(), clusterName)
 			return nil
 		}
@@ -190,13 +196,12 @@ func (c *Controller) syncToClusters(clusterName string, work *workv1alpha1.Work)
 	for _, manifest := range work.Spec.Workload.Manifests {
 		workload := &unstructured.Unstructured{}
 		err := workload.UnmarshalJSON(manifest.Raw)
-		util.MergeLabel(workload, workv1alpha2.WorkUIDLabel, string(work.UID))
 		if err != nil {
 			klog.Errorf("Failed to unmarshal workload, error is: %v", err)
 			errs = append(errs, err)
 			continue
 		}
-		util.MergeLabel(workload, workv1alpha2.WorkUIDLabel, string(work.UID))
+		util.MergeLabel(workload, workv1alpha2.WorkIDLabel, util.GetLabelValue(work.GetLabels(), workv1alpha2.WorkIDLabel))
 
 		if err = c.tryCreateOrUpdateWorkload(clusterName, workload); err != nil {
 			klog.Errorf("Failed to create or update resource(%v/%v) in the given member cluster %s, err is %v", workload.GetNamespace(), workload.GetName(), clusterName, err)

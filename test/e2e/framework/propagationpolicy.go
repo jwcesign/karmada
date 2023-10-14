@@ -12,6 +12,7 @@ import (
 
 	policyv1alpha1 "github.com/karmada-io/karmada/pkg/apis/policy/v1alpha1"
 	karmada "github.com/karmada-io/karmada/pkg/generated/clientset/versioned"
+	"github.com/karmada-io/karmada/pkg/util"
 )
 
 // CreatePropagationPolicy create PropagationPolicy with karmada client.
@@ -23,10 +24,10 @@ func CreatePropagationPolicy(client karmada.Interface, policy *policyv1alpha1.Pr
 }
 
 // GetPropagationPolicyUID get PropagationPolicy UID with karmada client.
-func GetPropagationPolicyUID(client karmada.Interface, namespace, name string) string {
+func GetPropagationPolicyID(client karmada.Interface, namespace, name string) string {
 	policy, err := client.PolicyV1alpha1().PropagationPolicies(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-	return string(policy.UID)
+	return util.GetLabelValue(policy.GetLabels(), policyv1alpha1.PropagationPolicyIDLabel)
 }
 
 // RemovePropagationPolicy delete PropagationPolicy with karmada client.

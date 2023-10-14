@@ -392,13 +392,13 @@ func (c *FederatedHPAController) getBindingByLabel(resourceLabel map[string]stri
 	}
 
 	var selector labels.Selector
-	if policyUID, ok := resourceLabel[policyv1alpha1.PropagationPolicyUIDLabel]; ok {
+	if policyID, ok := resourceLabel[policyv1alpha1.PropagationPolicyIDLabel]; ok {
 		selector = labels.SelectorFromSet(labels.Set{
-			policyv1alpha1.PropagationPolicyUIDLabel: policyUID,
+			policyv1alpha1.PropagationPolicyIDLabel: policyID,
 		})
-	} else if policyUID, ok = resourceLabel[policyv1alpha1.ClusterPropagationPolicyUIDLabel]; ok {
+	} else if policyID, ok = resourceLabel[policyv1alpha1.ClusterPropagationPolicyIDLabel]; ok {
 		selector = labels.SelectorFromSet(labels.Set{
-			policyv1alpha1.ClusterPropagationPolicyUIDLabel: policyUID,
+			policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
 		})
 	} else {
 		return nil, fmt.Errorf("no label of policy found. ")

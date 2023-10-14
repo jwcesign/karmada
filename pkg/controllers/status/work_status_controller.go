@@ -375,7 +375,7 @@ func (c *WorkStatusController) mergeStatus(_ []workv1alpha1.ManifestStatus, newS
 	return []workv1alpha1.ManifestStatus{newStatus}
 }
 
-func (c *WorkStatusController) getRawManifest(manifests []workv1alpha1.Manifest, workUID string, clusterObj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func (c *WorkStatusController) getRawManifest(manifests []workv1alpha1.Manifest, workID string, clusterObj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	for _, rawManifest := range manifests {
 		manifest := &unstructured.Unstructured{}
 		if err := manifest.UnmarshalJSON(rawManifest.Raw); err != nil {
@@ -386,7 +386,7 @@ func (c *WorkStatusController) getRawManifest(manifests []workv1alpha1.Manifest,
 			manifest.GetKind() == clusterObj.GetKind() &&
 			manifest.GetNamespace() == clusterObj.GetNamespace() &&
 			manifest.GetName() == clusterObj.GetName() {
-			util.MergeLabel(manifest, workv1alpha2.WorkUIDLabel, workUID)
+			util.MergeLabel(manifest, workv1alpha2.WorkIDLabel, workID)
 			return manifest, nil
 		}
 	}

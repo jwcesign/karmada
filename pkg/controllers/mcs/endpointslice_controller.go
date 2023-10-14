@@ -47,8 +47,9 @@ func (c *EndpointSliceController) Reconcile(ctx context.Context, req controllerr
 	}
 
 	if !work.DeletionTimestamp.IsZero() {
+		workID := util.GetLabelValue(work.GetLabels(), workv1alpha2.WorkIDLabel)
 		err := helper.DeleteEndpointSlice(c.Client, labels.Set{
-			workv1alpha2.WorkUIDLabel: string(work.UID),
+			workv1alpha2.WorkIDLabel: workID,
 		})
 		if err != nil {
 			return controllerruntime.Result{}, err
@@ -101,9 +102,10 @@ func (c *EndpointSliceController) collectEndpointSliceFromWork(work *workv1alpha
 			return controllerruntime.Result{Requeue: true}, err
 		}
 
+		workID := util.GetLabelValue(work.GetLabels(), workv1alpha2.WorkIDLabel)
 		desiredEndpointSlice := deriveEndpointSlice(endpointSlice, clusterName)
 		desiredEndpointSlice.Labels = map[string]string{
-			workv1alpha2.WorkUIDLabel:    string(work.UID),
+			workv1alpha2.WorkIDLabel:     workID,
 			discoveryv1.LabelServiceName: names.GenerateDerivedServiceName(work.Labels[util.ServiceNameLabel]),
 			util.ManagedByKarmadaLabel:   util.ManagedByKarmadaLabelValue,
 		}

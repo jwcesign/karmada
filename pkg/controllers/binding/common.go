@@ -151,11 +151,13 @@ func mergeLabel(workload *unstructured.Unstructured, workNamespace string, bindi
 	util.MergeAnnotation(workload, workv1alpha2.WorkNameAnnotationKey, names.GenerateWorkName(workload.GetKind(), workload.GetName(), workload.GetNamespace()))
 
 	if scope == apiextensionsv1.NamespaceScoped {
-		util.MergeLabel(workload, workv1alpha2.ResourceBindingUIDLabel, string(binding.GetUID()))
-		workLabel[workv1alpha2.ResourceBindingUIDLabel] = string(binding.GetUID())
+		bindingID := util.GetLabelValue(binding.GetLabels(), workv1alpha2.ResourceBindingIDLabel)
+		util.MergeLabel(workload, workv1alpha2.ResourceBindingIDLabel, bindingID)
+		workLabel[workv1alpha2.ResourceBindingIDLabel] = bindingID
 	} else {
-		util.MergeLabel(workload, workv1alpha2.ClusterResourceBindingUIDLabel, string(binding.GetUID()))
-		workLabel[workv1alpha2.ClusterResourceBindingUIDLabel] = string(binding.GetUID())
+		bindingID := util.GetLabelValue(binding.GetLabels(), workv1alpha2.ClusterResourceBindingIDLabel)
+		util.MergeLabel(workload, workv1alpha2.ClusterResourceBindingIDLabel, bindingID)
+		workLabel[workv1alpha2.ClusterResourceBindingIDLabel] = bindingID
 	}
 	return workLabel
 }

@@ -1,11 +1,11 @@
 package v1alpha2
 
 const (
-	// ResourceBindingUIDLabel is the UID of ResourceBinding object.
-	ResourceBindingUIDLabel = "resourcebinding.karmada.io/uid"
+	// ResourceBindingIDLabel is the ID of ResourceBinding object.
+	ResourceBindingIDLabel = "resourcebinding.karmada.io/id"
 
-	// ClusterResourceBindingUIDLabel is the uid of ClusterResourceBinding object.
-	ClusterResourceBindingUIDLabel = "clusterresourcebinding.karmada.io/uid"
+	// ClusterResourceBindingIDLabel is the id of ClusterResourceBinding object.
+	ClusterResourceBindingIDLabel = "clusterresourcebinding.karmada.io/id"
 
 	// WorkNamespaceAnnotationKey is added to objects to specify associated Work's namespace.
 	WorkNamespaceAnnotationKey = "work.karmada.io/namespace"
@@ -13,8 +13,8 @@ const (
 	// WorkNameAnnotationKey is added to objects to specify associated Work's name.
 	WorkNameAnnotationKey = "work.karmada.io/name"
 
-	// WorkUIDLabel is the uid of Work object.
-	WorkUIDLabel = "work.karmada.io/uid"
+	// WorkIDLabel is the id of Work object.
+	WorkIDLabel = "work.karmada.io/id"
 
 	// ResourceBindingNamespaceAnnotationKey is added to object to describe the associated ResourceBinding's namespace.
 	// It is added to:

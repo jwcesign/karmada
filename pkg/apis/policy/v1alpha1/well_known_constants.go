@@ -1,8 +1,8 @@
 package v1alpha1
 
 const (
-	// PropagationPolicyUIDLabel is the uid of PropagationPolicy object.
-	PropagationPolicyUIDLabel = "propagationpolicy.karmada.io/uid"
+	// PropagationPolicyIDLabel is the id of PropagationPolicy object.
+	PropagationPolicyIDLabel = "propagationpolicy.karmada.io/id"
 
 	// PropagationPolicyNamespaceAnnotation is added to objects to specify associated PropagationPolicy namespace.
 	PropagationPolicyNamespaceAnnotation = "propagationpolicy.karmada.io/namespace"
@@ -10,8 +10,8 @@ const (
 	// PropagationPolicyNameAnnotation is added to objects to specify associated PropagationPolicy name.
 	PropagationPolicyNameAnnotation = "propagationpolicy.karmada.io/name"
 
-	// ClusterPropagationPolicyUIDLabel is the uid of ClusterPropagationPolicy object.
-	ClusterPropagationPolicyUIDLabel = "clusterpropagationpolicy.karmada.io/uid"
+	// ClusterPropagationPolicyIDLabel is the uid of ClusterPropagationPolicy object.
+	ClusterPropagationPolicyIDLabel = "clusterpropagationpolicy.karmada.io/id"
 
 	// ClusterPropagationPolicyAnnotation is added to objects to specify associated ClusterPropagationPolicy name.
 	ClusterPropagationPolicyAnnotation = "clusterpropagationpolicy.karmada.io/name"
