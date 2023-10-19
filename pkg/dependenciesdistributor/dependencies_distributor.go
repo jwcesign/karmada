@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -539,19 +540,14 @@ func (d *DependenciesDistributor) removeFinalizer(resourceBinding *workv1alpha2.
 }
 
 func (d *DependenciesDistributor) createOrUpdateAttachedBinding(attachedBinding *workv1alpha2.ResourceBinding) error {
-	if err := d.Client.Create(context.TODO(), attachedBinding); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			klog.Infof("Failed to create resource binding(%s/%s): %v", attachedBinding.Namespace, attachedBinding.Name, err)
-			return err
+	existBinding := &workv1alpha2.ResourceBinding{}
+	key := client.ObjectKeyFromObject(attachedBinding)
+	err := d.Client.Get(context.TODO(), key, existBinding)
+	if err == nil {
+		resourceBindingID := util.GetLabelValue(existBinding.GetLabels(), workv1alpha2.ResourceBindingIDLabel)
+		if resourceBindingID != "" {
+			delete(attachedBinding.Labels, workv1alpha2.ResourceBindingIDLabel)
 		}
-
-		existBinding := &workv1alpha2.ResourceBinding{}
-		key := client.ObjectKeyFromObject(attachedBinding)
-		if err := d.Client.Get(context.TODO(), key, existBinding); err != nil {
-			klog.Infof("Failed to get resource binding(%s/%s): %v", attachedBinding.Namespace, attachedBinding.Name, err)
-			return err
-		}
-
 		existBinding.Spec.RequiredBy = mergeBindingSnapshot(existBinding.Spec.RequiredBy, attachedBinding.Spec.RequiredBy)
 		existBinding.Labels = util.DedupeAndMergeLabels(existBinding.Labels, attachedBinding.Labels)
 		existBinding.Spec.Resource = attachedBinding.Spec.Resource
@@ -561,7 +557,12 @@ func (d *DependenciesDistributor) createOrUpdateAttachedBinding(attachedBinding 
 			return err
 		}
 	}
-	return nil
+	if err != nil && !apierrors.IsNotFound(err) {
+		klog.Infof("Failed to get resource binding(%s/%s): %v", attachedBinding.Namespace, attachedBinding.Name, err)
+		return err
+	}
+
+	return d.Client.Create(context.TODO(), attachedBinding)
 }
 
 // Start runs the distributor, never stop until stopCh closed.
@@ -653,7 +654,8 @@ func generateDependencyKey(kind, apiVersion, namespace string) string {
 func buildAttachedBinding(binding *workv1alpha2.ResourceBinding, object *unstructured.Unstructured) *workv1alpha2.ResourceBinding {
 	bindingID := util.GetLabelValue(binding.GetLabels(), workv1alpha2.ResourceBindingIDLabel)
 	dependedLabels := map[string]string{
-		bindingDependedByIDLabelKey: bindingID,
+		bindingDependedByIDLabelKey:         bindingID,
+		workv1alpha2.ResourceBindingIDLabel: uuid.New().String(),
 	}
 
 	var result []workv1alpha2.BindingSnapshot
