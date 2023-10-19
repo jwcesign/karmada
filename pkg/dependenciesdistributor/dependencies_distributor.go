@@ -48,7 +48,7 @@ import (
 const (
 	// bindingDependedByUIDLabelKey is the label key specifying an attached binding referred by which independent binding.
 	// the key is in the label of an attached binding which should be unique, because resource like secret can be referred by multiple deployments.
-	bindingDependedByUIDLabelKey = "resourcebinding.karmada.io/depended-by-uid"
+	bindingDependedByIDLabelKey = "resourcebinding.karmada.io/depended-by-id"
 	// bindingDependenciesAnnotationKey represents the key of dependencies data (json serialized)
 	// in the annotations of an independent binding.
 	bindingDependenciesAnnotationKey = "resourcebinding.karmada.io/dependencies"
@@ -217,6 +217,10 @@ func (d *DependenciesDistributor) Reconcile(ctx context.Context, request reconci
 		}
 		klog.Errorf("Failed to get ResourceBinding(%s): %v", request.NamespacedName, err)
 		return reconcile.Result{}, err
+	}
+
+	if util.GetLabelValue(bindingObject.GetLabels(), workv1alpha2.ResourceBindingIDLabel) == "" {
+		return reconcile.Result{}, nil
 	}
 
 	// in case users set PropagateDeps field from "true" to "false"
@@ -466,8 +470,9 @@ func (d *DependenciesDistributor) isOrphanAttachedBindings(
 }
 
 func (d *DependenciesDistributor) listAttachedBindings(binding *workv1alpha2.ResourceBinding) (res []*workv1alpha2.ResourceBinding, err error) {
+	bindingID := util.GetLabelValue(binding.GetLabels(), workv1alpha2.ResourceBindingIDLabel)
 	labelSet := map[string]string{
-		bindingDependedByUIDLabelKey: string(binding.UID),
+		bindingDependedByIDLabelKey: bindingID,
 	}
 	selector := labels.SelectorFromSet(labelSet)
 	bindingList := &workv1alpha2.ResourceBindingList{}
@@ -490,7 +495,7 @@ func (d *DependenciesDistributor) removeScheduleResultFromAttachedBindings(resou
 
 	var errs []error
 	for index, binding := range attachedBindings {
-		delete(attachedBindings[index].Labels, bindingDependedByUIDLabelKey)
+		delete(attachedBindings[index].Labels, bindingDependedByIDLabelKey)
 		updatedSnapshot := deleteBindingFromSnapshot(resourceBinding.Namespace, resourceBinding.Name, attachedBindings[index].Spec.RequiredBy)
 		attachedBindings[index].Spec.RequiredBy = updatedSnapshot
 		if err := d.Client.Update(context.TODO(), attachedBindings[index]); err != nil {
@@ -646,8 +651,9 @@ func generateDependencyKey(kind, apiVersion, namespace string) string {
 }
 
 func buildAttachedBinding(binding *workv1alpha2.ResourceBinding, object *unstructured.Unstructured) *workv1alpha2.ResourceBinding {
+	bindingID := util.GetLabelValue(binding.GetLabels(), workv1alpha2.ResourceBindingIDLabel)
 	dependedLabels := map[string]string{
-		bindingDependedByUIDLabelKey: string(binding.UID),
+		bindingDependedByIDLabelKey: bindingID,
 	}
 
 	var result []workv1alpha2.BindingSnapshot
