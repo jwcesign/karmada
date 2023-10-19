@@ -537,7 +537,7 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 		return err
 	}
 
-	policyLabels, policyAnnotations, err := d.generateClusterResourceBindingLabelsAnnotations(object, objectKey, policy.Name, string(policy.UID))
+	policyLabels, policyAnnotations, err := d.generateClusterResourceBindingLabelsAnnotations(object, objectKey, policy.Name, policyID)
 	if err != nil {
 		return err
 	}
@@ -1248,11 +1248,11 @@ func (d *ResourceDetector) HandleClusterPropagationPolicyCreationOrUpdate(policy
 	// When updating fields other than ResourceSelector, should first find the corresponding ResourceBinding/ClusterResourceBinding
 	// and add the bound object to the processor's queue for reconciliation to make sure that
 	// ClusterPropagationPolicy's updates can be synchronized to ResourceBinding/ClusterResourceBinding.
-	resourceBindings, err := d.listCPPDerivedRB(string(policy.UID), policy.Name)
+	resourceBindings, err := d.listCPPDerivedRB(policy)
 	if err != nil {
 		return err
 	}
-	clusterResourceBindings, err := d.listCPPDerivedCRB(string(policy.UID), policy.Name)
+	clusterResourceBindings, err := d.listCPPDerivedCRB(policy)
 	if err != nil {
 		return err
 	}

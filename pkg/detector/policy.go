@@ -349,23 +349,33 @@ func (d *ResourceDetector) listPPDerivedRB(policyObjectMeta *metav1.ObjectMeta) 
 	return bindings, nil
 }
 
-func (d *ResourceDetector) listCPPDerivedRB(policyID, policyName string) (*workv1alpha2.ResourceBindingList, error) {
+func (d *ResourceDetector) listCPPDerivedRB(policy *policyv1alpha1.ClusterPropagationPolicy) (*workv1alpha2.ResourceBindingList, error) {
 	bindings := &workv1alpha2.ResourceBindingList{}
+	policyID := util.GetLabelValue(policy.GetLabels(), policyv1alpha1.ClusterPropagationPolicyIDLabel)
+	if policyID == "" {
+		return bindings, nil
+	}
+
 	listOpt := &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{
 			policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
 		})}
 	err := d.Client.List(context.TODO(), bindings, listOpt)
 	if err != nil {
-		klog.Errorf("Failed to list ResourceBinding with policy(%s), error: %v", policyName, err)
+		klog.Errorf("Failed to list ResourceBinding with policy(%s), error: %v", policy.Name, err)
 		return nil, err
 	}
 
 	return bindings, nil
 }
 
-func (d *ResourceDetector) listCPPDerivedCRB(policyID, policyName string) (*workv1alpha2.ClusterResourceBindingList, error) {
+func (d *ResourceDetector) listCPPDerivedCRB(policy *policyv1alpha1.ClusterPropagationPolicy) (*workv1alpha2.ClusterResourceBindingList, error) {
 	bindings := &workv1alpha2.ClusterResourceBindingList{}
+	policyID := util.GetLabelValue(policy.GetLabels(), policyv1alpha1.ClusterPropagationPolicyIDLabel)
+	if policyID == "" {
+		return bindings, nil
+	}
+
 	listOpt := &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{
 			policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
