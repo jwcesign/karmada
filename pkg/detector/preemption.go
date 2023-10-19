@@ -210,7 +210,10 @@ func (d *ResourceDetector) preemptClusterPropagationPolicy(resourceTemplate *uns
 			"Cluster propagation policy(%s) preempted cluster propagation policy(%s) successfully", policy.Name, claimedPolicyName)
 	}()
 
-	policyID := util.GetLabelValue(policy.GetLabels(), policyv1alpha1.PropagationPolicyIDLabel)
+	policyID, err := d.getClusterPropagationPolicyID(policy)
+	if err != nil {
+		return err
+	}
 	if err = d.ClaimClusterPolicyForObject(resourceTemplate, policy, policyID); err != nil {
 		klog.Errorf("Failed to claim new cluster propagation policy(%s) on resource template(%s, kind=%s, %s): %v.", policy.Name,
 			resourceTemplate.GetAPIVersion(), resourceTemplate.GetKind(), names.NamespacedKey(resourceTemplate.GetNamespace(), resourceTemplate.GetName()), err)

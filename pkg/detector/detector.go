@@ -708,6 +708,7 @@ func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unst
 	claimedID := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyIDLabel)
 	// object has been claimed, don't need to claim again
 	if claimedID == policyID {
+		klog.Infof("jw2:%v")
 		return nil
 	}
 
