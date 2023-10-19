@@ -203,7 +203,8 @@ func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
 		return nil
 	}
 
-	desiredObj, err := c.getRawManifest(workObject.Spec.Workload.Manifests, string(workObject.UID), observedObj)
+	workID := util.GetLabelValue(workObject.GetLabels(), workv1alpha2.WorkIDLabel)
+	desiredObj, err := c.getRawManifest(workObject.Spec.Workload.Manifests, workID, observedObj)
 	if err != nil {
 		return err
 	}
