@@ -73,7 +73,7 @@ func (c *ClusterResourceBindingController) Reconcile(ctx context.Context, req co
 		return c.removeFinalizer(clusterResourceBinding)
 	}
 
-	if util.GetLabelValue(clusterResourceBinding.GetLabels(), workv1alpha2.ClusterResourceBindingIDLabel) != "" {
+	if util.GetLabelValue(clusterResourceBinding.GetLabels(), workv1alpha2.ClusterResourceBindingIDLabel) == "" {
 		// It couldn't happen because we add the id when we create the ResourceBinding.
 		return controllerruntime.Result{}, nil
 	}
