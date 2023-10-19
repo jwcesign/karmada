@@ -104,7 +104,7 @@ func GetWorkListByBindingID(c client.Client, bindingMeta *metav1.ObjectMeta) (*w
 		bindingID := util.GetLabelValue(bindingMeta.Labels, workv1alpha2.ResourceBindingIDLabel)
 		ls = labels.Set{workv1alpha2.ResourceBindingIDLabel: bindingID}
 	} else {
-		bindingID := util.GetLabelValue(bindingMeta.Labels, workv1alpha2.ClusterResourceBindingAnnotationKey)
+		bindingID := util.GetLabelValue(bindingMeta.Labels, workv1alpha2.ClusterResourceBindingIDLabel)
 		ls = labels.Set{workv1alpha2.ClusterResourceBindingIDLabel: bindingID}
 	}
 	workList, err := GetWorksByLabelsSet(c, ls)
