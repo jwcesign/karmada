@@ -560,10 +560,10 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 						"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
 				}
 
-				bindingID := util.GetLabelValue(bindingCopy.Labels, workv1alpha2.ClusterResourceBindingIDLabel)
+				bindingID := util.GetLabelValue(bindingCopy.Labels, workv1alpha2.ResourceBindingIDLabel)
 				if bindingID == "" {
 					bindingID = uuid.New().String()
-					bindingCopy.Labels = util.DedupeAndMergeLabels(bindingCopy.Labels, map[string]string{workv1alpha2.ClusterResourceBindingIDLabel: bindingID})
+					bindingCopy.Labels = util.DedupeAndMergeLabels(bindingCopy.Labels, map[string]string{workv1alpha2.ResourceBindingIDLabel: bindingID})
 				}
 				// Just update necessary fields, especially avoid modifying Spec.Clusters which is scheduling result, if already exists.
 				bindingCopy.Annotations = util.DedupeAndMergeAnnotations(bindingCopy.Annotations, binding.Annotations)
@@ -611,6 +611,12 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 			if ownerRef := metav1.GetControllerOfNoCopy(bindingCopy); ownerRef != nil && ownerRef.UID != object.GetUID() {
 				return fmt.Errorf("failed to update binding due to different owner reference UID, will " +
 					"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
+			}
+
+			bindingID := util.GetLabelValue(bindingCopy.Labels, workv1alpha2.ClusterResourceBindingIDLabel)
+			if bindingID == "" {
+				bindingID = uuid.New().String()
+				bindingCopy.Labels = util.DedupeAndMergeLabels(bindingCopy.Labels, map[string]string{workv1alpha2.ClusterResourceBindingIDLabel: bindingID})
 			}
 			// Just update necessary fields, especially avoid modifying Spec.Clusters which is scheduling result, if already exists.
 			bindingCopy.Annotations = util.DedupeAndMergeAnnotations(bindingCopy.Annotations, binding.Annotations)
@@ -708,6 +714,7 @@ func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unst
 	objectCopy := object.DeepCopy()
 	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyIDLabel, policyID)
 	util.MergeAnnotation(objectCopy, policyv1alpha1.ClusterPropagationPolicyAnnotation, policy.Name)
+	klog.Infof("jw1:%v", objectCopy.GetLabels())
 	return d.Client.Update(context.TODO(), objectCopy)
 }
 
