@@ -211,7 +211,7 @@ func (d *ResourceDetector) cleanPPUnmatchedResourceBindings(policyObejectMeta *m
 }
 
 func (d *ResourceDetector) cleanCPPUnmatchedResourceBindings(policy *policyv1alpha1.ClusterPropagationPolicy) error {
-	bindings, err := d.listCPPDerivedRB(string(policy.UID), policy.Name)
+	bindings, err := d.listCPPDerivedRB(policy)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (d *ResourceDetector) cleanCPPUnmatchedResourceBindings(policy *policyv1alp
 }
 
 func (d *ResourceDetector) cleanUnmatchedClusterResourceBinding(policy *policyv1alpha1.ClusterPropagationPolicy) error {
-	bindings, err := d.listCPPDerivedCRB(string(policy.UID), policy.Name)
+	bindings, err := d.listCPPDerivedCRB(policy)
 	if err != nil {
 		return err
 	}
@@ -382,7 +382,7 @@ func (d *ResourceDetector) listCPPDerivedCRB(policy *policyv1alpha1.ClusterPropa
 		})}
 	err := d.Client.List(context.TODO(), bindings, listOpt)
 	if err != nil {
-		klog.Errorf("Failed to list ClusterResourceBinding with policy(%s), error: %v", policyName, err)
+		klog.Errorf("Failed to list ClusterResourceBinding with policy(%s), error: %v", policy.Name, err)
 		return nil, err
 	}
 
