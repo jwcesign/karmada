@@ -42,6 +42,8 @@ func RetainLabels(desired *unstructured.Unstructured, observed *unstructured.Uns
 		}
 		labels[key] = value
 	}
+	// TODO: Delete following one line in release-1.9
+	// delete(labels, workv1alpha2.WorkUIDLabel)
 	if len(labels) > 0 {
 		desired.SetLabels(labels)
 	}
