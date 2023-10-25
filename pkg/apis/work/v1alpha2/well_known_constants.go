@@ -1,6 +1,15 @@
 package v1alpha2
 
 const (
+	// ResourceBindingIDLabel is the ID of ResourceBinding object.
+	ResourceBindingIDLabel = "resourcebinding.karmada.io/id"
+
+	// ClusterResourceBindingIDLabel is the ID of ClusterResourceBinding object.
+	ClusterResourceBindingIDLabel = "clusterresourcebinding.karmada.io/id"
+
+	// WorkIDLabel is the ID of Work object.
+	WorkIDLabel = "work.karmada.io/id"
+
 	// ResourceBindingUIDLabel is the UID of ResourceBinding object.
 	ResourceBindingUIDLabel = "resourcebinding.karmada.io/uid"
 

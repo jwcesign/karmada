@@ -45,6 +45,9 @@ import (
 )
 
 const (
+	// bindingDependedIdLabelKey is the resoruce id of the independent binding which the attached binding depends on.
+	bindingDependedIdLabelKey = "resourcebinding.karmada.io/depended-id"
+
 	// bindingDependedByLabelKeyPrefix is the prefix to a label key specifying an attached binding referred by which independent binding.
 	// the key is in the label of an attached binding which should be unique, because resource like secret can be referred by multiple deployments.
 	bindingDependedByLabelKeyPrefix = "resourcebinding.karmada.io/depended-by-"
@@ -630,6 +633,8 @@ func buildAttachedBinding(binding *workv1alpha2.ResourceBinding, object *unstruc
 		Clusters:  binding.Spec.Clusters,
 	})
 
+	policyID := util.GetLabelValue(binding.Labels, workv1alpha2.ResourceBindingIDLabel)
+	dependedLabels = util.DedupeAndMergeLabels(dependedLabels, map[string]string{bindingDependedIdLabelKey: policyID})
 	return &workv1alpha2.ResourceBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.GenerateBindingName(object.GetKind(), object.GetName()),

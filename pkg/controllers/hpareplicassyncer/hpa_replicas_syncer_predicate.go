@@ -71,7 +71,7 @@ func (r *HPAReplicasSyncer) Generic(e event.GenericEvent) bool {
 }
 
 func hasBeenPropagated(hpa *autoscalingv2.HorizontalPodAutoscaler) bool {
-	_, ppExist := hpa.GetLabels()[policyv1alpha1.PropagationPolicyUIDLabel]
-	_, cppExist := hpa.GetLabels()[policyv1alpha1.ClusterPropagationPolicyUIDLabel]
+	_, ppExist := hpa.GetLabels()[policyv1alpha1.PropagationPolicyIDLabel]
+	_, cppExist := hpa.GetLabels()[policyv1alpha1.ClusterPropagationPolicyIDLabel]
 	return ppExist || cppExist
 }

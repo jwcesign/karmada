@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,6 +58,12 @@ func CreateOrUpdateWork(client client.Client, workMeta metav1.ObjectMeta, resour
 		operationResult, err = controllerutil.CreateOrUpdate(context.TODO(), client, runtimeObject, func() error {
 			if !runtimeObject.DeletionTimestamp.IsZero() {
 				return fmt.Errorf("work %s/%s is being deleted", runtimeObject.GetNamespace(), runtimeObject.GetName())
+			}
+
+			// Delete following one line in release-1.9
+			delete(runtimeObject.Labels, workv1alpha2.WorkUIDLabel)
+			if util.GetLabelValue(runtimeObject.Labels, workv1alpha2.WorkIDLabel) == "" {
+				work.Labels = util.DedupeAndMergeLabels(work.Labels, map[string]string{workv1alpha2.WorkIDLabel: uuid.New().String()})
 			}
 			runtimeObject.Spec = work.Spec
 			runtimeObject.Labels = work.Labels

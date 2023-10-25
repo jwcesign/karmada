@@ -1,6 +1,12 @@
 package v1alpha1
 
 const (
+	// PropagationPolicyIDLabel is the id of PropagationPolicy object.
+	PropagationPolicyIDLabel = "propagationpolicy.karmada.io/id"
+
+	// ClusterPropagationPolicyIDLabel is the id of ClusterPropagationPolicy object.
+	ClusterPropagationPolicyIDLabel = "clusterpropagationpolicy.karmada.io/id"
+
 	// PropagationPolicyUIDLabel is the uid of PropagationPolicy object.
 	PropagationPolicyUIDLabel = "propagationpolicy.karmada.io/uid"
 

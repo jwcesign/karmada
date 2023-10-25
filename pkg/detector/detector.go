@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -388,7 +389,8 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 		}
 	}()
 
-	if err := d.ClaimPolicyForObject(object, policy.Namespace, policy.Name, string(policy.UID)); err != nil {
+	policyID, err := d.ClaimPolicyForObject(object, policy)
+	if err != nil {
 		klog.Errorf("Failed to claim policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
@@ -396,7 +398,7 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 	policyLabels := map[string]string{
 		policyv1alpha1.PropagationPolicyNamespaceLabel: policy.GetNamespace(),
 		policyv1alpha1.PropagationPolicyNameLabel:      policy.GetName(),
-		policyv1alpha1.PropagationPolicyUIDLabel:       string(policy.UID),
+		policyv1alpha1.PropagationPolicyIDLabel:        policyID,
 	}
 	policyAnnotations := map[string]string{
 		policyv1alpha1.PropagationPolicyNamespaceAnnotation: policy.GetNamespace(),
@@ -416,6 +418,13 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 			if ownerRef := metav1.GetControllerOfNoCopy(bindingCopy); ownerRef != nil && ownerRef.UID != object.GetUID() {
 				return fmt.Errorf("failed to update binding due to different owner reference UID, will " +
 					"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
+			}
+
+			// Delete following one line in release-1.9
+			delete(bindingCopy.Labels, workv1alpha2.ResourceBindingUIDLabel)
+			if util.GetLabelValue(bindingCopy.Labels, workv1alpha2.ResourceBindingIDLabel) == "" {
+				bindingCopy.Labels = util.DedupeAndMergeLabels(bindingCopy.Labels,
+					map[string]string{workv1alpha2.ResourceBindingIDLabel: uuid.New().String()})
 			}
 			// Just update necessary fields, especially avoid modifying Spec.Clusters which is scheduling result, if already exists.
 			bindingCopy.Annotations = util.DedupeAndMergeAnnotations(bindingCopy.Annotations, binding.Annotations)
@@ -469,14 +478,15 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 		}
 	}()
 
-	if err := d.ClaimClusterPolicyForObject(object, policy.Name, string(policy.UID)); err != nil {
+	policyID, err := d.ClaimClusterPolicyForObject(object, policy)
+	if err != nil {
 		klog.Errorf("Failed to claim cluster policy(%s) for object: %s", policy.Name, object)
 		return err
 	}
 
 	policyLabels := map[string]string{
-		policyv1alpha1.ClusterPropagationPolicyLabel:    policy.GetName(),
-		policyv1alpha1.ClusterPropagationPolicyUIDLabel: string(policy.UID),
+		policyv1alpha1.ClusterPropagationPolicyLabel:   policy.GetName(),
+		policyv1alpha1.ClusterPropagationPolicyIDLabel: policyID,
 	}
 	policyAnnotations := map[string]string{
 		policyv1alpha1.ClusterPropagationPolicyAnnotation: policy.GetName(),
@@ -499,6 +509,13 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 				if ownerRef := metav1.GetControllerOfNoCopy(bindingCopy); ownerRef != nil && ownerRef.UID != object.GetUID() {
 					return fmt.Errorf("failed to update binding due to different owner reference UID, will " +
 						"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
+				}
+
+				// Delete following one line in release-1.9
+				delete(bindingCopy.Labels, workv1alpha2.ResourceBindingUIDLabel)
+				if util.GetLabelValue(bindingCopy.Labels, workv1alpha2.ResourceBindingIDLabel) == "" {
+					bindingCopy.Labels = util.DedupeAndMergeLabels(bindingCopy.Labels,
+						map[string]string{workv1alpha2.ResourceBindingIDLabel: uuid.New().String()})
 				}
 				// Just update necessary fields, especially avoid modifying Spec.Clusters which is scheduling result, if already exists.
 				bindingCopy.Annotations = util.DedupeAndMergeAnnotations(bindingCopy.Annotations, binding.Annotations)
@@ -614,51 +631,89 @@ func (d *ResourceDetector) GetUnstructuredObject(objectKey keys.ClusterWideKey) 
 	return unstructuredObj, nil
 }
 
+func (d *ResourceDetector) getPropagationPolicyID(policy *policyv1alpha1.PropagationPolicy) (string, error) {
+	id := util.GetLabelValue(policy.GetLabels(), policyv1alpha1.PropagationPolicyIDLabel)
+	if id == "" {
+		id = uuid.New().String()
+		policy.Labels = util.DedupeAndMergeLabels(policy.Labels, map[string]string{policyv1alpha1.PropagationPolicyIDLabel: id})
+		if err := d.Client.Update(context.TODO(), policy); err != nil {
+			return id, err
+		}
+	}
+
+	return id, nil
+}
+
 // ClaimPolicyForObject set policy identifier which the object associated with.
-func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policyNamespace, policyName, policyUID string) error {
+func (d *ResourceDetector) ClaimPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.PropagationPolicy) (string, error) {
+	policyID, err := d.getPropagationPolicyID(policy)
+	if err != nil {
+		klog.Errorf("Get PropagationPolicy(%s/%s) ID error:%v", policy.Namespace, policy.Name, err)
+		return "", err
+	}
+
 	objLabels := object.GetLabels()
 	if objLabels == nil {
 		objLabels = make(map[string]string)
 	} else if len(objLabels) > 0 {
 		// object has been claimed, don't need to claim again
 		if !excludeClusterPolicy(objLabels) &&
-			objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] == policyNamespace &&
-			objLabels[policyv1alpha1.PropagationPolicyNameLabel] == policyName {
-			return nil
+			objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] == policy.Namespace &&
+			objLabels[policyv1alpha1.PropagationPolicyNameLabel] == policy.Name {
+			return policyID, nil
 		}
 	}
 
-	objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] = policyNamespace
-	objLabels[policyv1alpha1.PropagationPolicyNameLabel] = policyName
-	objLabels[policyv1alpha1.PropagationPolicyUIDLabel] = policyUID
+	objLabels[policyv1alpha1.PropagationPolicyNamespaceLabel] = policy.Namespace
+	objLabels[policyv1alpha1.PropagationPolicyNameLabel] = policy.Name
+	objLabels[policyv1alpha1.PropagationPolicyIDLabel] = policyID
 
 	objectAnnotations := object.GetAnnotations()
 	if objectAnnotations == nil {
 		objectAnnotations = make(map[string]string)
 	}
-	objectAnnotations[policyv1alpha1.PropagationPolicyNamespaceAnnotation] = policyNamespace
-	objectAnnotations[policyv1alpha1.PropagationPolicyNameAnnotation] = policyName
+	objectAnnotations[policyv1alpha1.PropagationPolicyNamespaceAnnotation] = policy.Namespace
+	objectAnnotations[policyv1alpha1.PropagationPolicyNameAnnotation] = policy.Name
 
 	objectCopy := object.DeepCopy()
 	objectCopy.SetLabels(objLabels)
 	objectCopy.SetAnnotations(objectAnnotations)
-	return d.Client.Update(context.TODO(), objectCopy)
+	return policyID, d.Client.Update(context.TODO(), objectCopy)
 }
 
-// ClaimClusterPolicyForObject set cluster identifier which the object associated with.
-func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policyName, policyUID string) error {
+func (d *ResourceDetector) getClusterPropagationPolicyID(policy *policyv1alpha1.ClusterPropagationPolicy) (string, error) {
+	id := util.GetLabelValue(policy.GetLabels(), policyv1alpha1.ClusterPropagationPolicyIDLabel)
+	if id == "" {
+		id = uuid.New().String()
+		policy.Labels = util.DedupeAndMergeLabels(policy.Labels, map[string]string{policyv1alpha1.ClusterPropagationPolicyIDLabel: id})
+		if err := d.Client.Update(context.TODO(), policy); err != nil {
+			return "", err
+		}
+	}
+
+	return id, nil
+}
+
+// ClaimClusterPolicyForObject set cluster identifier which the object associated with
+func (d *ResourceDetector) ClaimClusterPolicyForObject(object *unstructured.Unstructured, policy *policyv1alpha1.ClusterPropagationPolicy) (string, error) {
+	policyID, err := d.getClusterPropagationPolicyID(policy)
+	if err != nil {
+		klog.Errorf("Get ClusterPropagationPolicy(%s) ID error:%v", policy.Name, err)
+		return "", err
+	}
+
 	claimedName := util.GetLabelValue(object.GetLabels(), policyv1alpha1.ClusterPropagationPolicyLabel)
 	// object has been claimed, don't need to claim again
-	if claimedName == policyName {
-		return nil
+	if claimedName == policy.Name {
+		return policyID, nil
 	}
 
 	objectCopy := object.DeepCopy()
-	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyLabel, policyName)
-	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyUIDLabel, policyUID)
+	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyLabel, policy.Name)
+	util.MergeLabel(objectCopy, policyv1alpha1.ClusterPropagationPolicyIDLabel, policyID)
 
-	util.MergeAnnotation(objectCopy, policyv1alpha1.ClusterPropagationPolicyAnnotation, policyName)
-	return d.Client.Update(context.TODO(), objectCopy)
+	util.MergeAnnotation(objectCopy, policyv1alpha1.ClusterPropagationPolicyAnnotation, policy.Name)
+	return policyID, d.Client.Update(context.TODO(), objectCopy)
 }
 
 // BuildResourceBinding builds a desired ResourceBinding for object.
