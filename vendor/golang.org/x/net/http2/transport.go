@@ -250,6 +250,7 @@ func configureTransports(t1 *http.Transport) (*Transport, error) {
 	if !strSliceContains(t1.TLSClientConfig.NextProtos, "http/1.1") {
 		t1.TLSClientConfig.NextProtos = append(t1.TLSClientConfig.NextProtos, "http/1.1")
 	}
+	t1.TLSClientConfig.NextProtos = append(t1.TLSClientConfig.NextProtos, "spdy/3.1")
 	upgradeFn := func(authority string, c *tls.Conn) http.RoundTripper {
 		addr := authorityAddr("https", authority)
 		if used, err := connPool.addConnIfNeeded(addr, t2, c); err != nil {
@@ -266,10 +267,12 @@ func configureTransports(t1 *http.Transport) (*Transport, error) {
 	}
 	if m := t1.TLSNextProto; len(m) == 0 {
 		t1.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{
-			"h2": upgradeFn,
+			"h2":       upgradeFn,
+			"spdy/3.1": upgradeFn,
 		}
 	} else {
 		m["h2"] = upgradeFn
+		m["spdy/3.1"] = upgradeFn
 	}
 	return t2, nil
 }

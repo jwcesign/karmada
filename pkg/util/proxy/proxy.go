@@ -22,6 +22,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	registryrest "k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/klog/v2"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 )
@@ -35,6 +36,7 @@ func ConnectCluster(ctx context.Context, cluster *clusterapis.Cluster, proxyPath
 		return nil, err
 	}
 
+	klog.Info("jw111")
 	location, proxyTransport, err := Location(cluster, tlsConfig)
 	if err != nil {
 		return nil, err
