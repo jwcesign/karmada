@@ -30,6 +30,8 @@ const (
 	ResourcePluralMultiClusterService = "multiclusterservices"
 	// ResourceNamespaceScopedMultiClusterService indicates if MultiClusterService is NamespaceScoped.
 	ResourceNamespaceScopedMultiClusterService = true
+	// ServiceApplied indicates whether the service is propagated to member clusters
+	ServiceApplied string = "ServiceApplied"
 )
 
 // +genclient

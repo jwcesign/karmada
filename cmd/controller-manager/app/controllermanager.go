@@ -63,6 +63,7 @@ import (
 	"github.com/karmada-io/karmada/pkg/controllers/gracefuleviction"
 	"github.com/karmada-io/karmada/pkg/controllers/hpareplicassyncer"
 	"github.com/karmada-io/karmada/pkg/controllers/mcs"
+	"github.com/karmada-io/karmada/pkg/controllers/mcsendpointslice"
 	"github.com/karmada-io/karmada/pkg/controllers/namespace"
 	"github.com/karmada-io/karmada/pkg/controllers/status"
 	"github.com/karmada-io/karmada/pkg/controllers/unifiedauth"
@@ -95,7 +96,7 @@ func NewControllerManagerCommand(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "karmada-controller-manager",
 		Long: `The karmada-controller-manager runs various controllers.
-The controllers watch Karmada objects and then talk to the underlying clusters' API servers 
+The controllers watch Karmada objects and then talk to the underlying clusters' API servers
 to create regular Kubernetes resources.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// validate options
@@ -224,6 +225,8 @@ func init() {
 	controllers["federatedHorizontalPodAutoscaler"] = startFederatedHorizontalPodAutoscalerController
 	controllers["cronFederatedHorizontalPodAutoscaler"] = startCronFederatedHorizontalPodAutoscalerController
 	controllers["hpaReplicasSyncer"] = startHPAReplicasSyncerController
+	controllers["endpointslicecollect"] = startEndpointSliceCollectController
+	controllers["endpointslicesync"] = startEndpointSliceSyncController
 }
 
 func startClusterController(ctx controllerscontext.Context) (enabled bool, err error) {
@@ -457,6 +460,39 @@ func startServiceExportController(ctx controllerscontext.Context) (enabled bool,
 		return false, err
 	}
 	return true, nil
+}
+
+func startEndpointSliceCollectController(ctx controllerscontext.Context) (enabled bool, err error) {
+	opts := ctx.Opts
+	endpointSliceCollectController := &mcsendpointslice.EndpointSliceCollectController{
+		Client:                      ctx.Mgr.GetClient(),
+		EventRecorder:               ctx.Mgr.GetEventRecorderFor(mcs.ServiceExportControllerName),
+		RESTMapper:                  ctx.Mgr.GetRESTMapper(),
+		InformerManager:             genericmanager.GetInstance(),
+		StopChan:                    ctx.StopChan,
+		WorkerNumber:                3,
+		ClusterDynamicClientSetFunc: util.NewClusterDynamicClientSet,
+		ClusterCacheSyncTimeout:     opts.ClusterCacheSyncTimeout,
+	}
+	endpointSliceCollectController.RunWorkQueue()
+	if err := endpointSliceCollectController.SetupWithManager(ctx.Mgr); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func startEndpointSliceSyncController(ctx controllerscontext.Context) (enabled bool, err error) {
+	endpointSliceSyncController := &mcsendpointslice.EndpointsliceSyncController{
+		Client:          ctx.Mgr.GetClient(),
+		EventRecorder:   ctx.Mgr.GetEventRecorderFor(mcs.ServiceExportControllerName),
+		RESTMapper:      ctx.Mgr.GetRESTMapper(),
+		InformerManager: genericmanager.GetInstance(),
+	}
+	if err := endpointSliceSyncController.SetupWithManager(ctx.Mgr); err != nil {
+		return false, err
+	}
+	return true, nil
+
 }
 
 func startEndpointSliceController(ctx controllerscontext.Context) (enabled bool, err error) {

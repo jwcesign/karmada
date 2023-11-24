@@ -19,14 +19,18 @@ package helper
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	networkingv1alpha1 "github.com/karmada-io/karmada/pkg/apis/networking/v1alpha1"
 )
 
 // CreateOrUpdateEndpointSlice creates a EndpointSlice object if not exist, or updates if it already exists.
@@ -90,4 +94,8 @@ func DeleteEndpointSlice(c client.Client, selector labels.Set) error {
 	}
 
 	return errors.NewAggregate(errs)
+}
+
+func IsServiceApplied(mcsStatus *corev1.ServiceStatus) bool {
+	return meta.IsStatusConditionTrue(mcsStatus.Conditions, networkingv1alpha1.ServiceApplied)
 }

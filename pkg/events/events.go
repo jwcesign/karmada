@@ -129,3 +129,15 @@ const (
 	// EventReasonSyncDerivedServiceFailed indicates that sync derived service failed.
 	EventReasonSyncDerivedServiceFailed = "SyncDerivedServiceFailed"
 )
+
+// Define events for MultiClusterService objects with CrossCluster type.
+const (
+	// EventReasonSyncMultiClusterServiceFailed indicates that collect multi-cluster endpointslice failed.
+	EventReasonCollectEndpointSliceFailed = "CollectEndpointSliceFailed"
+	// EventReasonSyncMultiClusterServiceSucceed indicates that collect multi-cluster endpointslice succeed.
+	EventReasonCollectEndpointSliceSucceed = "CollectEndpointSliceSucceed"
+	// EventReasonSyncEndpointSliceFailed indicates that sync endpointslice failed.
+	EventReasonSyncEndpointSliceFailed = "SyncEndpointSliceFailed"
+	// EventReasonSyncEndpointSliceSucceed indicates that sync endpointslice succeed.
+	EventReasonSyncEndpointSliceSucceed = "SyncEndpointSliceSucceed"
+)

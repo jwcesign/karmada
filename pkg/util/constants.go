@@ -25,6 +25,8 @@ const (
 	// ServiceNameLabel is added to work object, which is report by member cluster, to specify service name associated with EndpointSlice.
 	ServiceNameLabel = "endpointslice.karmada.io/name"
 
+	EndpointSliceProvisionClusterLabel = "endpointslice.karmada.io/provision-cluster"
+
 	// PropagationInstruction is used to mark a resource(like Work) propagation instruction.
 	// Valid values includes:
 	// - suppressed: indicates that the resource should not be propagated.
@@ -44,6 +46,9 @@ const (
 
 	// ManagedByKarmadaLabelValue indicates that resources are managed by karmada controllers.
 	ManagedByKarmadaLabelValue = "true"
+
+	// EndpointSliceControllerLabelValue indicates the endpointSlice are controlled by karmada-mcs-endpointslice-controller
+	EndpointSliceControllerLabelValue = "karmada-mcs-endpointslice-controller"
 
 	// RetainReplicasLabel is a reserved label to indicate whether the replicas should be retained. e.g:
 	// resourcetemplate.karmada.io/retain-replicas: true   // with value `true` indicates retain
@@ -85,6 +90,12 @@ const (
 	// BindingControllerFinalizer is added to ResourceBinding to ensure related Works are deleted
 	// before ResourceBinding itself is deleted.
 	BindingControllerFinalizer = "karmada.io/binding-controller"
+
+	// MCSEndpointSliceCollectControllerFinalizer is added to mcs to ensure related Works in provision clusters are deleted
+	MCSEndpointSliceCollectControllerFinalizer = "karmada.io/mcs-endpointslice-collect-controller"
+
+	// MCSEndpointSliceSyncControllerFinalizer is added to mcs to ensure related Works in consumption clusters are deleted
+	MCSEndpointSliceSyncControllerFinalizer = "karmada.io/mcs-endpointslice-sync-controller"
 
 	// ClusterResourceBindingControllerFinalizer is added to ClusterResourceBinding to ensure related Works are deleted
 	// before ClusterResourceBinding itself is deleted.
@@ -140,6 +151,8 @@ const (
 
 	// CRDKind indicated the target resource is a CustomResourceDefinition
 	CRDKind = "CustomResourceDefinition"
+
+	MCSKind = "MultiClusterService"
 
 	// ClusterRoleKind indicates the target resource is a clusterrole
 	ClusterRoleKind = "ClusterRole"
