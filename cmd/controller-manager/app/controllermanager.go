@@ -227,6 +227,7 @@ func init() {
 	controllers["hpaReplicasSyncer"] = startHPAReplicasSyncerController
 	controllers["endpointslicecollect"] = startEndpointSliceCollectController
 	controllers["endpointslicesync"] = startEndpointSliceSyncController
+	controllers["multiclusterservice"] = startMCSController
 }
 
 func startClusterController(ctx controllerscontext.Context) (enabled bool, err error) {
@@ -629,6 +630,18 @@ func startFederatedHorizontalPodAutoscalerController(ctx controllerscontext.Cont
 		ClusterCacheSyncTimeout:           ctx.Opts.ClusterCacheSyncTimeout,
 	}
 	if err = federatedHPAController.SetupWithManager(ctx.Mgr); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func startMCSController(ctx controllerscontext.Context) (enabled bool, err error) {
+	mcsController := &mcs.MCSController{
+		Client:             ctx.Mgr.GetClient(),
+		EventRecorder:      ctx.Mgr.GetEventRecorderFor(mcs.ControllerName),
+		RateLimiterOptions: ctx.Opts.RateLimiterOptions,
+	}
+	if err = mcsController.SetupWithManager(ctx.Mgr); err != nil {
 		return false, err
 	}
 	return true, nil
