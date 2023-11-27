@@ -32,6 +32,10 @@ const (
 	ResourceNamespaceScopedMultiClusterService = true
 	// ServiceApplied indicates whether the service is propagated to member clusters
 	ServiceApplied string = "ServiceApplied"
+	// EndpointSliceCollected indicates whether the endpointslice is collected from provision clusters
+	EndpointSliceCollected string = "EndpointSliceCollected"
+	// EndpointSliceSynced indicates whether the EndpointSlice is synced to consumption clusters
+	EndpointSliceSynced string = "EndpointSliceSynced"
 )
 
 // +genclient

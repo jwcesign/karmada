@@ -108,7 +108,7 @@ func (c *EndpointSliceCollectController) Reconcile(ctx context.Context, req cont
 			c.EventRecorder.Eventf(mcs, corev1.EventTypeWarning, events.EventReasonCollectEndpointSliceFailed, err.Error())
 			return
 		}
-		_ = c.updateEndpointSliceCollected(mcs, metav1.ConditionFalse, "EndpointSliceCollectedSucceed", "EndpointSlice are collected successfully")
+		_ = c.updateEndpointSliceCollected(mcs, metav1.ConditionTrue, "EndpointSliceCollectedSucceed", "EndpointSlice are collected successfully")
 		c.EventRecorder.Eventf(mcs, corev1.EventTypeNormal, events.EventReasonCollectEndpointSliceSucceed, "EndpointSlice are collected successfully")
 	}()
 
@@ -479,7 +479,7 @@ func (c *EndpointSliceCollectController) reportEndpointSliceWithEndpointSliceCre
 
 func (c *EndpointSliceCollectController) updateEndpointSliceCollected(mcs *networkingv1alpha1.MultiClusterService, status metav1.ConditionStatus, reason, message string) error {
 	EndpointSliceCollected := metav1.Condition{
-		Type:               workv1alpha1.WorkApplied,
+		Type:               networkingv1alpha1.EndpointSliceCollected,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
@@ -511,6 +511,8 @@ func reportEndpointSlice(c client.Client, endpointSlice *unstructured.Unstructur
 		Name:      names.GenerateMCSWorkName(endpointSlice.GetKind(), endpointSlice.GetName(), endpointSlice.GetNamespace(), clusterName),
 		Namespace: executionSpace,
 		Labels: map[string]string{
+			util.ServiceNamespaceLabel:                             endpointSlice.GetNamespace(),
+			util.ServiceNameLabel:                                  endpointSlice.GetLabels()[discoveryv1.LabelServiceName],
 			networkingv1alpha1.MultiClusterServicePermanentIDLabel: util.GetLabelValue(mcs.Labels, networkingv1alpha1.MultiClusterServicePermanentIDLabel),
 			// indicate the Work should be not propagated since it's collected resource.
 			util.PropagationInstruction: util.PropagationInstructionSuppressed,

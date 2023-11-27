@@ -91,10 +91,11 @@ func (c *EndpointsliceSyncController) Reconcile(ctx context.Context, req control
 	defer func() {
 		if err != nil {
 			_ = c.updateEndpointSliceSynced(mcs, metav1.ConditionFalse, "EndpointSliceSyncFailed", err.Error())
-			c.EventRecorder.Eventf(mcs, corev1.EventTypeWarning, events.EventReasonScheduleBindingFailed, err.Error())
+			c.EventRecorder.Eventf(mcs, corev1.EventTypeWarning, events.EventReasonSyncEndpointSliceFailed, err.Error())
+			return
 		}
-		_ = c.updateEndpointSliceSynced(mcs, metav1.ConditionFalse, "EndpointSliceSyncSucceed", "EndpointSlice are synced successfully")
-		c.EventRecorder.Eventf(mcs, corev1.EventTypeWarning, events.EventReasonScheduleBindingSucceed, "EndpointSlice are synced successfully")
+		_ = c.updateEndpointSliceSynced(mcs, metav1.ConditionTrue, "EndpointSliceSyncSucceed", "EndpointSlice are synced successfully")
+		c.EventRecorder.Eventf(mcs, corev1.EventTypeWarning, events.EventReasonSyncEndpointSliceFailed, "EndpointSlice are synced successfully")
 	}()
 
 	// TDB: When cluster range changes in mcs, we should delete/create the corresponding work
@@ -107,7 +108,7 @@ func (c *EndpointsliceSyncController) Reconcile(ctx context.Context, req control
 
 func (c *EndpointsliceSyncController) updateEndpointSliceSynced(mcs *networkingv1alpha1.MultiClusterService, status metav1.ConditionStatus, reason, message string) error {
 	EndpointSliceCollected := metav1.Condition{
-		Type:               workv1alpha1.WorkApplied,
+		Type:               networkingv1alpha1.EndpointSliceSynced,
 		Status:             status,
 		Reason:             reason,
 		Message:            message,
