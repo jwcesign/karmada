@@ -1,0 +1,28 @@
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repo address, like: https://github.com/karmada-io/karmada.git"
+        required: true
+        type: string
+      start:
+        description: 'The start tag/commit flag'
+        required: true
+        type: string
+      end:
+        description: 'The end tag/commit flag'
+        required: true
+        type: string
+      exclude_contributor:
+        description: 'The contributor to ignore, use space to split'
+        required: false
+        type: string
+
+jobs:
+  job_name:
+    uses: jwcesign/get-contributors/.github/workflows/get-contributors.yaml@main
+    with:
+        repo: ${{ github.event.inputs.repo }}
+        start: ${{ github.event.inputs.start }}
+        end: ${{ github.event.inputs.end }}
+        exclude_contributor: ${{ github.event.inputs.exclude_contributor }}
