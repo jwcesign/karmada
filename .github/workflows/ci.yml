@@ -1,13 +1,10 @@
 name: CI Workflow
 on:
+  workflow_dispatch: {}
   # Run this workflow every time a new commit pushed to upstream/fork repository.
   # Run workflow on fork repository will help contributors find and resolve issues before sending a PR.
   push:
   pull_request:
-# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency
-concurrency:
-  group: ${{ github.workflow }}-${{ github.actor }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
 jobs:
   golangci:
     name: lint
@@ -80,7 +77,6 @@ jobs:
         run: make all
   test:
     name: unit test
-    needs: build
     runs-on: ubuntu-22.04
     env:
       COLOR_GOTEST_ENABLED: enabled
