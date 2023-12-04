@@ -199,8 +199,7 @@ func (c *MCSController) deleteMultiClusterServiceWork(mcs *networkingv1alpha1.Mu
 		}
 
 		if err = c.Client.Delete(context.TODO(), work.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
-			klog.Errorf("Error while updating work(%s/%s) deletion timestamp: %s",
-				work.Namespace, work.Name, err)
+			klog.Errorf("Error while deleting work(%s/%s): %v", work.Namespace, work.Name, err)
 			return err
 		}
 	}
@@ -285,6 +284,9 @@ func (c *MCSController) ensureMultiClusterServiceWork(ctx context.Context, mcs *
 	}
 
 	for clusterName := range provisionClusters {
+		if !c.IsClusterReady(clusterName) {
+			continue
+		}
 		workMeta := metav1.ObjectMeta{
 			Name:      names.GenerateMCSWorkName(mcs.Kind, mcs.Name, mcs.Namespace, clusterName),
 			Namespace: names.GenerateExecutionSpaceName(clusterName),
