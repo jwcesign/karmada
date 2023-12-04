@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/errors"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -46,6 +46,7 @@ import (
 
 	clusterv1alpha1 "github.com/karmada-io/karmada/pkg/apis/cluster/v1alpha1"
 	networkingv1alpha1 "github.com/karmada-io/karmada/pkg/apis/networking/v1alpha1"
+	workv1alpha1 "github.com/karmada-io/karmada/pkg/apis/work/v1alpha1"
 	"github.com/karmada-io/karmada/pkg/events"
 	"github.com/karmada-io/karmada/pkg/sharedcli/ratelimiterflag"
 	"github.com/karmada-io/karmada/pkg/util"
@@ -65,7 +66,6 @@ type MCSController struct {
 
 var (
 	serviceGVK = corev1.SchemeGroupVersion.WithKind("Service")
-	clusterGVR = clusterv1alpha1.SchemeGroupVersion.WithResource("clusters")
 )
 
 // Reconcile performs a full reconciliation for the object referred to by the Request.
@@ -198,6 +198,11 @@ func (c *MCSController) deleteMultiClusterServiceWork(mcs *networkingv1alpha1.Mu
 			continue
 		}
 
+		if err := c.cleanProvisionEndpointSliceWork(work.DeepCopy()); err != nil {
+			klog.Errorf("Failed to clean provision EndpointSlice work(%s/%s):%v", work.Namespace, work.Name, err)
+			return err
+		}
+
 		if err = c.Client.Delete(context.TODO(), work.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
 			klog.Errorf("Error while deleting work(%s/%s): %v", work.Namespace, work.Name, err)
 			return err
@@ -205,6 +210,49 @@ func (c *MCSController) deleteMultiClusterServiceWork(mcs *networkingv1alpha1.Mu
 	}
 
 	klog.V(4).InfoS("Success to delete MultiClusterService work", "namespace", mcs.Namespace, "name", mcs.Name)
+	return nil
+}
+
+func (c *MCSController) cleanProvisionEndpointSliceWork(work *workv1alpha1.Work) error {
+	workList := &workv1alpha1.WorkList{}
+	if err := c.List(context.TODO(), workList, &client.ListOptions{
+		Namespace: work.Namespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			util.MultiClusterServiceNameLabel:      util.GetLabelValue(work.Labels, util.MultiClusterServiceNameLabel),
+			util.MultiClusterServiceNamespaceLabel: util.GetLabelValue(work.Labels, util.MultiClusterServiceNamespaceLabel),
+		}),
+	}); err != nil {
+		klog.Errorf("Failed to list workList reported by work(MultiClusterService)(%s/%s): %v", work.Namespace, work.Name, err)
+		return err
+	}
+
+	var errs []error
+	for _, work := range workList.Items {
+		if !helper.IsWorkContains(work.Spec.Workload.Manifests, endpointSliceGVK) {
+			continue
+		}
+		// We only care about the EndpointSlice work in provision clusters
+		if util.GetAnnotationValue(work.Annotations, util.EndpointSliceProvisionClusterAnnotation) != "" {
+			continue
+		}
+
+		if err := c.Delete(context.TODO(), work.DeepCopy()); err != nil {
+			klog.Errorf("Failed to delete work(%s/%s), Error: %v", work.Namespace, work.Name, err)
+			errs = append(errs, err)
+		}
+	}
+	if err := utilerrors.NewAggregate(errs); err != nil {
+		return err
+	}
+
+	// TBD: This is needed because we add this finalizer in version 1.8.0, delete this in version 1.10.0
+	if controllerutil.RemoveFinalizer(work, util.MCSEndpointSliceCollectControllerFinalizer) {
+		if err := c.Update(context.TODO(), work); err != nil {
+			klog.Errorf("Failed to update work(%s/%s), Error: %v", work.Namespace, work.Name, err)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -262,7 +310,7 @@ func (c *MCSController) handleMCSCreateOrUpdate(ctx context.Context, mcs *networ
 		return err
 	}
 
-	// 7. delete MultiClusterService work not in provision clusters
+	// 7. delete MultiClusterService work not in provision clusters and in the unready clusters
 	if err = c.deleteMultiClusterServiceWork(mcs, false); err != nil {
 		return err
 	}
@@ -366,7 +414,7 @@ func (c *MCSController) syncSVCWorkToClusters(
 		}
 	}
 	if len(errs) != 0 {
-		return syncClusters, errors.NewAggregate(errs)
+		return syncClusters, utilerrors.NewAggregate(errs)
 	}
 
 	return syncClusters, nil
