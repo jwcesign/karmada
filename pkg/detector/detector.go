@@ -247,6 +247,12 @@ func (d *ResourceDetector) Reconcile(key util.QueueKey) error {
 		return err
 	}
 
+	resoruceTemplateMatchedBy := util.GetLabelValue(object.GetLabels(), util.ResourceTemplateMatchedByLabel)
+	if resoruceTemplateMatchedBy != "" && resoruceTemplateMatchedBy != util.PolicyKind {
+		d.RemoveWaiting(clusterWideKey)
+		return nil
+	}
+
 	return d.propagateResource(object, clusterWideKey)
 }
 

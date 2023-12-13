@@ -262,6 +262,14 @@ func NewDaemonSet(namespace string, name string) *appsv1.DaemonSet {
 }
 
 func NewCrossClusterMultiClusterService(namespace, name string, provisionClusters, consumptionClusters []string) *networkingv1alpha1.MultiClusterService {
+	providerClusterSelector := []networkingv1alpha1.ClusterSelector{}
+	for _, cluster := range provisionClusters {
+		providerClusterSelector = append(providerClusterSelector, networkingv1alpha1.ClusterSelector{Name: cluster})
+	}
+	consumerClusterSelector := []networkingv1alpha1.ClusterSelector{}
+	for _, cluster := range consumptionClusters {
+		consumerClusterSelector = append(consumerClusterSelector, networkingv1alpha1.ClusterSelector{Name: cluster})
+	}
 	return &networkingv1alpha1.MultiClusterService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.karmada.io/v1alpha1",
@@ -275,8 +283,8 @@ func NewCrossClusterMultiClusterService(namespace, name string, provisionCluster
 			Types: []networkingv1alpha1.ExposureType{
 				networkingv1alpha1.ExposureTypeCrossCluster,
 			},
-			ServiceProvisionClusters:   provisionClusters,
-			ServiceConsumptionClusters: consumptionClusters,
+			ProviderClusters: providerClusterSelector,
+			ConsumerClusters: consumerClusterSelector,
 		},
 	}
 }

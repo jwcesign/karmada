@@ -106,28 +106,34 @@ func MultiClusterServiceCrossClusterEnabled(mcs *networkingv1alpha1.MultiCluster
 	return false
 }
 
-func GetProvisionClusters(client client.Client, mcs *networkingv1alpha1.MultiClusterService) (sets.Set[string], error) {
-	provisionClusters := sets.New[string](mcs.Spec.ServiceProvisionClusters...)
-	existClusters, err := util.GetClusterSet(client)
+func GetProviderClusters(client client.Client, mcs *networkingv1alpha1.MultiClusterService) (existClusters, noneExistClusters sets.Set[string], err error) {
+	provisionClusters := sets.New[string]()
+	for _, p := range mcs.Spec.ProviderClusters {
+		provisionClusters.Insert(p.Name)
+	}
+	allClusters, err := util.GetClusterSet(client)
 	if err != nil {
 		klog.Errorf("Failed to get cluster set, Error: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	if len(provisionClusters) == 0 {
-		return existClusters, nil
+		return allClusters, nil, nil
 	}
-	return provisionClusters.Intersection(existClusters), nil
+	return provisionClusters.Clone().Intersection(allClusters), provisionClusters.Clone().Delete(allClusters.UnsortedList()...), nil
 }
 
-func GetConsumptionClustres(client client.Client, mcs *networkingv1alpha1.MultiClusterService) (sets.Set[string], error) {
-	consumptionClusters := sets.New[string](mcs.Spec.ServiceConsumptionClusters...)
-	existClusters, err := util.GetClusterSet(client)
+func GetConsumerClustres(client client.Client, mcs *networkingv1alpha1.MultiClusterService) (existClusters, noneExistClusters sets.Set[string], err error) {
+	consumptionClusters := sets.New[string]()
+	for _, c := range mcs.Spec.ConsumerClusters {
+		consumptionClusters.Insert(c.Name)
+	}
+	allClusters, err := util.GetClusterSet(client)
 	if err != nil {
 		klog.Errorf("Failed to get cluster set, Error: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	if len(consumptionClusters) == 0 {
-		return existClusters, nil
+		return allClusters, nil, nil
 	}
-	return consumptionClusters.Intersection(existClusters), nil
+	return consumptionClusters.Clone().Intersection(allClusters), consumptionClusters.Clone().Delete(allClusters.UnsortedList()...), nil
 }

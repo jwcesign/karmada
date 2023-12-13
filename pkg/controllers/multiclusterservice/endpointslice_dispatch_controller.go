@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -192,7 +191,7 @@ func (c *EndpointsliceDispatchController) newClusterFunc() handler.MapFunc {
 
 		var requests []reconcile.Request
 		for _, mcs := range mcsList.Items {
-			clusterSet, err := helper.GetConsumptionClustres(c.Client, mcs.DeepCopy())
+			clusterSet, _, err := helper.GetConsumerClustres(c.Client, mcs.DeepCopy())
 			if err != nil {
 				klog.Errorf("Failed to get provision clusters, error: %v", err)
 				continue
@@ -284,7 +283,7 @@ func (c *EndpointsliceDispatchController) cleanOrphanDispatchedEndpointSlice(ctx
 			continue
 		}
 
-		consumptionClusters, err := helper.GetConsumptionClustres(c.Client, mcs)
+		consumptionClusters, _, err := helper.GetConsumerClustres(c.Client, mcs)
 		if err != nil {
 			klog.Errorf("Failed to get consumption clusters, error is: %v", err)
 			return err
@@ -316,15 +315,12 @@ func (c *EndpointsliceDispatchController) dispatchEndpointSlice(ctx context.Cont
 		return err
 	}
 
-	consumptionClusters := sets.New[string](mcs.Spec.ServiceConsumptionClusters...)
-	if len(consumptionClusters) == 0 {
-		consumptionClusters, err = util.GetClusterSet(c.Client)
-		if err != nil {
-			klog.Errorf("Failed to get cluster set, error is: %v", err)
-			return err
-		}
+	consumerClusters, _, err := helper.GetConsumerClustres(c.Client, mcs)
+	if err != nil {
+		klog.Errorf("Failed to get consumer clusters, error is: %v", err)
+		return err
 	}
-	for clusterName := range consumptionClusters {
+	for clusterName := range consumerClusters {
 		if clusterName == epsSourceCluster {
 			continue
 		}

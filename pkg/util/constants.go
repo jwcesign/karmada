@@ -58,6 +58,8 @@ const (
 	// resourcetemplate.karmada.io/retain-replicas: true   // with value `true` indicates retain
 	// resourcetemplate.karmada.io/retain-replicas: false  // with value `false` and others, indicates not retain
 	RetainReplicasLabel = "resourcetemplate.karmada.io/retain-replicas"
+
+	ResourceTemplateMatchedByLabel = "resorucetemplate.karmada.io/matched-by"
 )
 
 const (
@@ -172,6 +174,10 @@ const (
 	ServiceExportKind = "ServiceExport"
 	// ServiceImportKind indicates the target resource is a serviceimport crd
 	ServiceImportKind = "ServiceImport"
+
+	PolicyKind = "Policy"
+
+	MultiClusterServiceKind = "MultiClusterService"
 )
 
 // Define resource filed

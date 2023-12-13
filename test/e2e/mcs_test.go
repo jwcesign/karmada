@@ -559,7 +559,7 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 		})
 	})
@@ -595,7 +595,7 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 		})
 	})
@@ -633,11 +633,15 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 
-			mcs.Spec.ServiceProvisionClusters = []string{member2Name}
-			mcs.Spec.ServiceConsumptionClusters = []string{member1Name}
+			mcs.Spec.ProviderClusters = []networkingv1alpha1.ClusterSelector{
+				{Name: member2Name},
+			}
+			mcs.Spec.ConsumerClusters = []networkingv1alpha1.ClusterSelector{
+				{Name: member1Name},
+			}
 			framework.UpdateMultiClusterService(karmadaClient, mcs)
 
 			framework.WaitMultiClusterServicePresentOnClustersFitWith(karmadaClient, testNamespace, mcsName, func(mcs *networkingv1alpha1.MultiClusterService) bool {
@@ -676,7 +680,7 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 		})
 	})
@@ -712,7 +716,7 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 		})
 	})
@@ -748,21 +752,30 @@ var _ = ginkgo.Describe("CrossCluster MultiClusterService testing", func() {
 			})
 
 			gomega.Eventually(func() bool {
-				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ServiceProvisionClusters, mcs.Spec.ServiceConsumptionClusters)
+				return checkEndpointSliceWithMultiClusterService(testNamespace, mcsName, mcs.Spec.ProviderClusters, mcs.Spec.ConsumerClusters)
 			}, pollTimeout, pollInterval).Should(gomega.BeTrue())
 		})
 	})
 })
 
-func checkEndpointSliceWithMultiClusterService(mcsNamespace, mcsName string, provisionClusters, consumptionClusters []string) bool {
-	if len(provisionClusters) == 0 {
-		provisionClusters = framework.ClusterNames()
-	}
-	if len(consumptionClusters) == 0 {
-		consumptionClusters = framework.ClusterNames()
+func checkEndpointSliceWithMultiClusterService(mcsNamespace, mcsName string, provisionClusters, consumptionClusters []networkingv1alpha1.ClusterSelector) bool {
+	providerClusterNames := framework.ClusterNames()
+	if len(provisionClusters) != 0 {
+		providerClusterNames = []string{}
+		for _, provisionCluster := range provisionClusters {
+			providerClusterNames = append(providerClusterNames, provisionCluster.Name)
+		}
 	}
 
-	for _, clusterName := range provisionClusters {
+	consumerClusterNames := framework.ClusterNames()
+	if len(consumptionClusters) != 0 {
+		consumerClusterNames = []string{}
+		for _, consumptionCluster := range consumptionClusters {
+			consumerClusterNames = append(consumerClusterNames, consumptionCluster.Name)
+		}
+	}
+
+	for _, clusterName := range providerClusterNames {
 		provisonClusterClient := framework.GetClusterClient(clusterName)
 		gomega.Expect(provisonClusterClient).ShouldNot(gomega.BeNil())
 
@@ -771,8 +784,8 @@ func checkEndpointSliceWithMultiClusterService(mcsNamespace, mcsName string, pro
 		})
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-		for _, consumptionCluster := range consumptionClusters {
-			consumptionClusterClient := framework.GetClusterClient(consumptionCluster)
+		for _, consumerCluster := range consumerClusterNames {
+			consumptionClusterClient := framework.GetClusterClient(consumerCluster)
 			gomega.Expect(consumptionClusterClient).ShouldNot(gomega.BeNil())
 
 			consumptionEPSList, err := consumptionClusterClient.DiscoveryV1().EndpointSlices(mcsNamespace).List(context.TODO(), metav1.ListOptions{
@@ -780,7 +793,7 @@ func checkEndpointSliceWithMultiClusterService(mcsNamespace, mcsName string, pro
 			})
 			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-			if !checkEndpointSliceSynced(provisionEPSList, consumptionEPSList, clusterName, consumptionCluster) {
+			if !checkEndpointSliceSynced(provisionEPSList, consumptionEPSList, clusterName, consumerCluster) {
 				return false
 			}
 		}
