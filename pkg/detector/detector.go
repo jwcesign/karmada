@@ -451,6 +451,12 @@ func (d *ResourceDetector) ApplyPolicy(object *unstructured.Unstructured, object
 					"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
 			}
 
+			// In the scenario of MultiClusterService, when it's deleted, the corresponding Binding will be deleted.
+			// detector should try again after the deletion is completed.
+			if !bindingCopy.DeletionTimestamp.IsZero() {
+				return fmt.Errorf("ResourceBinding(%s/%s) is in the process of deletion, try again later", bindingCopy.Namespace, bindingCopy.Name)
+			}
+
 			// TODO: Delete following two lines in release-1.9
 			delete(bindingCopy.Labels, workv1alpha2.ResourceBindingUIDLabel)
 			delete(bindingCopy.Labels, policyv1alpha1.PropagationPolicyUIDLabel)
@@ -541,6 +547,12 @@ func (d *ResourceDetector) ApplyClusterPolicy(object *unstructured.Unstructured,
 				if ownerRef := metav1.GetControllerOfNoCopy(bindingCopy); ownerRef != nil && ownerRef.UID != object.GetUID() {
 					return fmt.Errorf("failed to update binding due to different owner reference UID, will " +
 						"try again later after binding is garbage collected, see https://github.com/karmada-io/karmada/issues/2090")
+				}
+
+				// In the scenario of MultiClusterService, when it's deleted, the corresponding Binding will be deleted.
+				// detector should try again after the deletion is completed.
+				if !bindingCopy.DeletionTimestamp.IsZero() {
+					return fmt.Errorf("ResourceBinding(%s/%s) is in the process of deletion, try again later", bindingCopy.Namespace, bindingCopy.Name)
 				}
 
 				// TODO: Delete following two lines in release-1.9

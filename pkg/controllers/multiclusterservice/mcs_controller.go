@@ -345,17 +345,6 @@ func (c *MCSController) retrieveService(mcs *networkingv1alpha1.MultiClusterServ
 		return nil
 	}
 
-	svcCopy := svc.DeepCopy()
-	if svcCopy.Labels != nil {
-		delete(svcCopy.Labels, util.ResourceTemplateClaimedByLabel)
-		delete(svcCopy.Labels, networkingv1alpha1.MultiClusterServicePermanentIDLabel)
-	}
-
-	if err = c.Client.Update(context.Background(), svcCopy); err != nil {
-		klog.Errorf("Failed to update service(%s/%s):%v", mcs.Namespace, mcs.Name, err)
-		return err
-	}
-
 	rb := &workv1alpha2.ResourceBinding{}
 	err = c.Client.Get(context.Background(), types.NamespacedName{Namespace: mcs.Namespace, Name: names.GenerateBindingName(svc.Kind, svc.Name)}, rb)
 	if err != nil {
@@ -368,6 +357,17 @@ func (c *MCSController) retrieveService(mcs *networkingv1alpha1.MultiClusterServ
 
 	if err := c.Client.Delete(context.Background(), rb); err != nil {
 		klog.Errorf("Failed to delete ResourceBinding(%s/%s):%v", mcs.Namespace, names.GenerateBindingName(svc.Kind, svc.Name), err)
+		return err
+	}
+
+	svcCopy := svc.DeepCopy()
+	if svcCopy.Labels != nil {
+		delete(svcCopy.Labels, util.ResourceTemplateClaimedByLabel)
+		delete(svcCopy.Labels, networkingv1alpha1.MultiClusterServicePermanentIDLabel)
+	}
+
+	if err = c.Client.Update(context.Background(), svcCopy); err != nil {
+		klog.Errorf("Failed to update service(%s/%s):%v", mcs.Namespace, mcs.Name, err)
 		return err
 	}
 
