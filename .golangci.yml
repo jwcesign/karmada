@@ -66,6 +66,8 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#if-return
       - name: if-return
         disabled: true
+      - name: range
+      - name: error-naming
   staticcheck:
     checks:
       - all
