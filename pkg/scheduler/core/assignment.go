@@ -59,7 +59,7 @@ type assignState struct {
 	strategyType string
 
 	scheduledClusters []workv1alpha2.TargetCluster
-	assignedReplicas  int32
+	readyReplicas     int32
 	availableClusters []workv1alpha2.TargetCluster
 	availableReplicas int32
 
@@ -89,9 +89,20 @@ func newAssignState(candidates []*clusterv1alpha1.Cluster, placement *policyv1al
 	return &assignState{candidates: candidates, strategy: placement.ReplicaScheduling, spec: obj, strategyType: strategyType}
 }
 
-func (as *assignState) buildScheduledClusters() {
-	as.scheduledClusters = as.spec.Clusters
-	as.assignedReplicas = util.GetSumOfReplicas(as.scheduledClusters)
+func (as *assignState) buildScheduledClusters(candidates []*clusterv1alpha1.Cluster) {
+	candidatesSet := sets.Set[string]{}
+	for _, v := range candidates {
+		candidatesSet.Insert(v.Name)
+	}
+
+	readyAssignedClusters := []workv1alpha2.TargetCluster{}
+	for _, cluster := range as.spec.Clusters {
+		if candidatesSet.Has(cluster.Name) {
+			readyAssignedClusters = append(readyAssignedClusters, cluster)
+		}
+	}
+	as.scheduledClusters = readyAssignedClusters
+	as.readyReplicas = util.GetSumOfReplicas(as.scheduledClusters)
 }
 
 func (as *assignState) buildAvailableClusters(c calculator) {
@@ -164,15 +175,15 @@ func assignByStaticWeightStrategy(state *assignState) ([]workv1alpha2.TargetClus
 }
 
 func assignByDynamicStrategy(state *assignState) ([]workv1alpha2.TargetCluster, error) {
-	state.buildScheduledClusters()
-	if state.assignedReplicas > state.spec.Replicas {
+	state.buildScheduledClusters(state.candidates)
+	if state.readyReplicas > state.spec.Replicas {
 		// We need to reduce the replicas in terms of the previous result.
 		result, err := dynamicScaleDown(state)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scale down: %v", err)
 		}
 		return result, nil
-	} else if state.assignedReplicas < state.spec.Replicas {
+	} else if state.readyReplicas < state.spec.Replicas {
 		// We need to enlarge the replicas in terms of the previous result (if exists).
 		// First scheduling is considered as a special kind of scaling up.
 		result, err := dynamicScaleUp(state)

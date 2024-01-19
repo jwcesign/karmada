@@ -118,7 +118,7 @@ func dynamicScaleDown(state *assignState) ([]workv1alpha2.TargetCluster, error) 
 
 func dynamicScaleUp(state *assignState) ([]workv1alpha2.TargetCluster, error) {
 	// Target is the extra ones.
-	state.targetReplicas = state.spec.Replicas - state.assignedReplicas
+	state.targetReplicas = state.spec.Replicas - state.readyReplicas
 	state.buildAvailableClusters(func(clusters []*clusterv1alpha1.Cluster, spec *workv1alpha2.ResourceBindingSpec) []workv1alpha2.TargetCluster {
 		clusterAvailableReplicas := calAvailableReplicas(clusters, spec)
 		sort.Sort(TargetClustersList(clusterAvailableReplicas))

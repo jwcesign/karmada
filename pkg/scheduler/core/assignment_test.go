@@ -789,7 +789,7 @@ func Test_dynamicScaleUp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			state := newAssignState(tt.candidates, tt.placement, tt.object)
-			state.buildScheduledClusters()
+			state.buildScheduledClusters([]*clusterv1alpha1.Cluster{})
 			got, err := dynamicScaleUp(state)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("dynamicScaleUp() error = %v, wantErr %v", err, tt.wantErr)
